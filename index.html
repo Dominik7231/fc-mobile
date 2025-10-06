@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="hu">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>2D 11v11 Focis Játék</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div class="hud">
+      <div class="scoreboard">
+        <span class="team home">Hazai: <strong id="home-score">0</strong></span>
+        <span class="time" id="match-time">00:00</span>
+        <span class="team away">Vendég: <strong id="away-score">0</strong></span>
+      </div>
+      <div class="controls">
+        <p>
+          Irányítás: <kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> – mozgás,
+          <kbd>Space</kbd> – lövés / passz
+        </p>
+      </div>
+    </div>
+    <canvas id="pitch" width="1200" height="720"></canvas>
+    <script src="game.js"></script>
+  </body>
+</html>
