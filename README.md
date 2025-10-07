@@ -30,10 +30,30 @@ Alternatívaként a fenti „Helyi futtatás” lépéseket követve saját gép
 
 ## Irányítás
 
+### Billentyűzet
+
 - Mozgás: `W`, `A`, `S`, `D`
 - Lövés: `Space`
 - Precíz passz a legjobb pozícióban álló csapattársnak: `F`
 - Sprint: `Shift` (fogyasztja az állóképességet)
 - Legközelebbi hazai játékos átvétele: `Q`
 
-A pálya tetején található eredményjelző mutatja a hátralévő időt és a gólokat, az új állóképesség-csík pedig követhetővé teszi, hogy meddig tartható a sprintelés.
+### Xbox Series kontroller
+
+- Mozgás: bal analóg kar
+- Lövés: `A`
+- Precíz passz: `B`
+- Sprint: `RT`
+- Legközelebbi játékos átvétele: `LB`
+
+A kontroller és a billentyűzet párhuzamosan is használható; a játék automatikusan a legutóbbi bemenetet veszi figyelembe.
+
+A pálya tetején található eredményjelző mutatja a hátralévő időt és a gólokat, a verziószám, valamint a birtoklási mérő az aktuális mérkőzés állapotáról ad visszajelzést, míg az állóképesség-csík segít nyomon követni, hogy meddig tartható a sprintelés.
+
+## Újdonságok a v1.4.0-ban
+
+- A játékosok már nem léphetnek a vonalakon kívülre: a mesterséges intelligencia és a felhasználó által irányított labdarúgók is a játéktéren belül maradnak.
+- Xbox Series kontroller támogatás, beleértve a sprintet, passzt, lövést és gyors játékosváltást.
+- Új birtoklási mérő, amely valós időben számolja és kijelzi a két csapat labdabirtoklási arányát.
+- Finomhangolt csapatjáték: a védekező egység kijelölt üldözői támadják a labdát, miközben a támadók birtokláskor mélyebb futásokat indítanak.
+- A HUD mostantól verziószámot jelenít meg, így könnyebb követni, melyik kiadással játszol.

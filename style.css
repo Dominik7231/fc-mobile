@@ -42,6 +42,8 @@ canvas#pitch {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.5rem;
   background: rgba(12, 12, 12, 0.6);
   border-radius: 999px;
   padding: 0.75rem 1.5rem;
@@ -65,6 +67,24 @@ canvas#pitch {
   letter-spacing: 0.12em;
 }
 
+.scoreboard .version {
+  font-size: 0.85rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.65);
+}
+
+.possession {
+  background: rgba(15, 15, 15, 0.45);
+  border-radius: 14px;
+  padding: 0.55rem 1.25rem;
+  font-size: 0.9rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  box-shadow: 0 0.4rem 1.3rem rgba(0, 0, 0, 0.3);
+  color: rgba(255, 255, 255, 0.8);
+}
+
 .controls {
   background: rgba(12, 12, 12, 0.45);
   border-radius: 16px;
@@ -73,7 +93,13 @@ canvas#pitch {
   box-shadow: 0 0.75rem 1.75rem rgba(0, 0, 0, 0.3);
 }
 
-.controls kbd {
+.controls p {
+  margin: 0.35rem 0;
+  line-height: 1.6;
+}
+
+.controls kbd,
+.controls .chip {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -86,6 +112,11 @@ canvas#pitch {
   font-family: inherit;
   font-size: 0.9rem;
   box-shadow: inset 0 -0.15rem 0.2rem rgba(0, 0, 0, 0.3);
+}
+
+.controls .chip {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
 }
 
 .stamina-meter {

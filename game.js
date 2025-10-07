@@ -16,10 +16,16 @@ const BALL_FRICTION = 0.98;
 const BALL_MAX_SPEED = 520;
 const KICK_STRENGTH = 400;
 const MATCH_LENGTH = 4 * 60; // 4 perces mérkőzés
+const PITCH_MARGIN_X = 40;
+const PITCH_MARGIN_Y = 40;
+const GAME_VERSION = "v1.4.0";
+const GAMEPAD_DEADZONE = 0.2;
 
 const homeScoreEl = document.getElementById("home-score");
 const awayScoreEl = document.getElementById("away-score");
 const timeEl = document.getElementById("match-time");
+const possessionEl = document.getElementById("possession-meter");
+const versionEl = document.getElementById("game-version");
 
 const keys = new Set();
 let lastKickTime = 0;
@@ -27,6 +33,13 @@ let matchTime = 0;
 let gameOver = false;
 let lastFrame = performance.now();
 let controlledPlayer = null;
+let previousInputState = null;
+let activeGamepadIndex = null;
+
+const possessionTotals = {
+  home: 0,
+  away: 0,
+};
 
 class Vector2 {
   constructor(x = 0, y = 0) {
@@ -160,9 +173,9 @@ class Player {
     return this.isUser ? USER_SPEED : PLAYER_SPEED;
   }
 
-  update(dt, ball) {
+  update(dt, ball, inputState = null) {
     if (this.isUser) {
-      this.handleUserControl(dt, ball);
+      this.handleUserControl(dt, ball, inputState);
     } else {
       this.handleAI(dt, ball);
     }
@@ -170,16 +183,12 @@ class Player {
     this.keepInsidePitch();
   }
 
-  handleUserControl(dt, ball) {
-    const input = new Vector2();
-    if (keys.has("KeyW")) input.y -= 1;
-    if (keys.has("KeyS")) input.y += 1;
-    if (keys.has("KeyA")) input.x -= 1;
-    if (keys.has("KeyD")) input.x += 1;
+  handleUserControl(dt, ball, inputState) {
+    const moveInput = inputState?.move ? inputState.move.clone() : new Vector2();
 
-    if (input.length() > 0) {
-      input.normalize();
-      const wantsSprint = keys.has("ShiftLeft") || keys.has("ShiftRight");
+    if (moveInput.length() > 0) {
+      moveInput.normalize();
+      const wantsSprint = Boolean(inputState?.sprint);
       let speed = this.maxSpeed();
       if (wantsSprint && this.stamina > 5) {
         speed = SPRINT_SPEED;
@@ -192,14 +201,14 @@ class Player {
           speed *= 0.75;
         }
       }
-      this.velocity = input.scale(speed);
-      this.lastDirection = Vector2.from(input);
+      this.velocity = moveInput.scale(speed);
+      this.lastDirection = Vector2.from(moveInput);
     } else {
       this.velocity.scale(0.85);
       this.stamina = Math.min(STAMINA_MAX, this.stamina + STAMINA_RECOVERY_RATE * dt);
     }
 
-    const shootPressed = keys.has("Space");
+    const shootPressed = Boolean(inputState?.shoot);
     if (shootPressed && !this.shootHeld) {
       const now = performance.now();
       if (now - lastKickTime > 220) {
@@ -209,7 +218,7 @@ class Player {
     }
     this.shootHeld = shootPressed;
 
-    const passPressed = keys.has("KeyF");
+    const passPressed = Boolean(inputState?.pass);
     if (passPressed && !this.passHeld) {
       const now = performance.now();
       if (now - lastKickTime > 160) {
@@ -228,6 +237,13 @@ class Player {
       y: this.basePosition.y + (ball.position.y / HEIGHT - 0.5) * 0.15,
     };
 
+    const teamInPossession = this.team.hasPossession(ball);
+    const isAttacker = this.team.attackingPlayers.includes(this);
+    if (teamInPossession && isAttacker) {
+      targetNorm.x += 0.06 * homeMirror;
+      targetNorm.y += (ball.position.y / HEIGHT - 0.5) * 0.12;
+    }
+
     const target = pitchFromNormalized(targetNorm, this.team.isHome);
     const desired = Vector2.subtract(target, this.position);
 
@@ -240,9 +256,11 @@ class Player {
     }
 
     const distanceToBall = Vector2.subtract(ball.position, this.position).length();
+    const isDesignatedChaser = this.team.currentChasers.includes(this);
+    const pressingRadius = isDesignatedChaser ? 260 : 120;
     const shouldChaseBall =
-      distanceToBall < 140 ||
-      (this.team.hasPossession(ball) && this.team.attackingPlayers.includes(this));
+      distanceToBall < PLAYER_RADIUS * 3 ||
+      (isDesignatedChaser && distanceToBall < pressingRadius);
 
     if (shouldChaseBall) {
       const chase = Vector2.subtract(ball.position, this.position).normalize().scale(this.maxSpeed());
@@ -302,9 +320,12 @@ class Player {
   }
 
   keepInsidePitch() {
-    const padding = PLAYER_RADIUS + 4;
-    this.position.x = Math.max(padding, Math.min(WIDTH - padding, this.position.x));
-    this.position.y = Math.max(padding, Math.min(HEIGHT - padding, this.position.y));
+    const minX = PITCH_MARGIN_X + PLAYER_RADIUS;
+    const maxX = WIDTH - PITCH_MARGIN_X - PLAYER_RADIUS;
+    const minY = PITCH_MARGIN_Y + PLAYER_RADIUS;
+    const maxY = HEIGHT - PITCH_MARGIN_Y - PLAYER_RADIUS;
+    this.position.x = Math.max(minX, Math.min(maxX, this.position.x));
+    this.position.y = Math.max(minY, Math.min(maxY, this.position.y));
   }
 
   draw() {
@@ -338,6 +359,7 @@ class Team {
     this.color = color;
     this.players = [];
     this.attackingPlayers = [];
+    this.currentChasers = [];
   }
 
   init(formation) {
@@ -352,8 +374,12 @@ class Team {
     });
   }
 
-  update(dt, ball) {
-    this.players.forEach((p) => p.update(dt, ball));
+  update(dt, ball, inputState = null) {
+    this.assignChasers(ball);
+    this.players.forEach((p) => {
+      const playerInput = p === controlledPlayer ? inputState : null;
+      p.update(dt, ball, playerInput);
+    });
   }
 
   draw() {
@@ -364,6 +390,19 @@ class Team {
     return this.players.some(
       (player) => Vector2.subtract(ball.position, player.position).length() < PLAYER_RADIUS * 2.6
     );
+  }
+
+  assignChasers(ball) {
+    const ranked = this.players
+      .map((player) => ({
+        player,
+        distance: Vector2.subtract(ball.position, player.position).length(),
+      }))
+      .sort((a, b) => a.distance - b.distance);
+
+    this.currentChasers = ranked
+      .slice(0, Math.min(2, ranked.length))
+      .map((entry) => entry.player);
   }
 }
 
@@ -419,7 +458,79 @@ function pitchFromNormalized({ x, y }, isHome) {
   return new Vector2(px, py);
 }
 
+function applyDeadzone(value, threshold = GAMEPAD_DEADZONE) {
+  return Math.abs(value) < threshold ? 0 : value;
+}
+
+function getActiveGamepad() {
+  if (!navigator.getGamepads) return null;
+  const pads = navigator.getGamepads();
+  if (activeGamepadIndex !== null) {
+    const existing = pads[activeGamepadIndex];
+    if (existing && existing.connected) {
+      return existing;
+    }
+  }
+  for (const pad of pads) {
+    if (pad && pad.connected) {
+      activeGamepadIndex = pad.index;
+      return pad;
+    }
+  }
+  activeGamepadIndex = null;
+  return null;
+}
+
+function pollInputState() {
+  let moveX = 0;
+  let moveY = 0;
+  if (keys.has("KeyD") || keys.has("ArrowRight")) moveX += 1;
+  if (keys.has("KeyA") || keys.has("ArrowLeft")) moveX -= 1;
+  if (keys.has("KeyS") || keys.has("ArrowDown")) moveY += 1;
+  if (keys.has("KeyW") || keys.has("ArrowUp")) moveY -= 1;
+
+  let sprint = keys.has("ShiftLeft") || keys.has("ShiftRight");
+  let shoot = keys.has("Space");
+  let pass = keys.has("KeyF");
+  let switchPlayer = keys.has("KeyQ");
+
+  const gamepad = getActiveGamepad();
+  if (gamepad) {
+    const axisX = applyDeadzone(gamepad.axes[0] || 0);
+    const axisY = applyDeadzone(gamepad.axes[1] || 0);
+    moveX += axisX;
+    moveY += axisY;
+
+    sprint = sprint || (gamepad.buttons[7] && gamepad.buttons[7].value > 0.4);
+    shoot = shoot || Boolean(gamepad.buttons[0]?.pressed);
+    pass = pass || Boolean(gamepad.buttons[1]?.pressed);
+    switchPlayer = switchPlayer || Boolean(gamepad.buttons[4]?.pressed);
+  }
+
+  const move = new Vector2(moveX, moveY);
+  if (move.length() > 1) {
+    move.normalize();
+  }
+
+  return {
+    move,
+    sprint,
+    shoot,
+    pass,
+    switch: switchPlayer,
+  };
+}
+
 function update(dt) {
+  const inputState = pollInputState();
+  if (inputState.switch && !(previousInputState && previousInputState.switch)) {
+    switchToClosestPlayer();
+  }
+  previousInputState = {
+    ...inputState,
+    move: inputState.move.clone(),
+  };
+
   if (gameOver) return;
 
   matchTime += dt;
@@ -431,10 +542,12 @@ function update(dt) {
   updateClock();
   updateStaminaBar();
 
-  homeTeam.update(dt, ball);
+  homeTeam.update(dt, ball, inputState);
   awayTeam.update(dt, ball);
   resolveCollisions();
+  trackPossession(dt);
   ball.update(dt);
+  updatePossessionDisplay();
 }
 
 function resolveCollisions() {
@@ -559,6 +672,28 @@ function updateStaminaBar() {
   staminaFillEl.style.width = `${Math.max(0, Math.min(100, width))}%`;
 }
 
+function trackPossession(dt) {
+  const homeHas = homeTeam.hasPossession(ball);
+  const awayHas = awayTeam.hasPossession(ball);
+  if (homeHas && !awayHas) {
+    possessionTotals.home += dt;
+  } else if (awayHas && !homeHas) {
+    possessionTotals.away += dt;
+  }
+}
+
+function updatePossessionDisplay() {
+  if (!possessionEl) return;
+  const total = possessionTotals.home + possessionTotals.away;
+  if (total <= 0) {
+    possessionEl.textContent = "Birtoklás: 50% - 50%";
+    return;
+  }
+  const homePct = Math.round((possessionTotals.home / total) * 100);
+  const awayPct = 100 - homePct;
+  possessionEl.textContent = `Birtoklás: ${homePct}% - ${awayPct}%`;
+}
+
 let homeScore = 0;
 let awayScore = 0;
 
@@ -595,6 +730,9 @@ function resetGame() {
   awayScoreEl.textContent = "0";
   ball.reset(1);
   updateClock();
+  possessionTotals.home = 0;
+  possessionTotals.away = 0;
+  previousInputState = null;
   [...homeTeam.players, ...awayTeam.players].forEach((player) => {
     player.position = pitchFromNormalized(player.basePosition, player.team.isHome);
     player.velocity = new Vector2();
@@ -603,6 +741,7 @@ function resetGame() {
     player.shootHeld = false;
   });
   updateStaminaBar();
+  updatePossessionDisplay();
 }
 
 function gameLoop(timestamp) {
@@ -617,9 +756,6 @@ function handleKeyDown(e) {
   if (e.code === "KeyR" && gameOver) {
     resetGame();
   }
-  if (e.code === "KeyQ") {
-    switchToClosestPlayer();
-  }
   if (["Space", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.code)) {
     e.preventDefault();
   }
@@ -632,6 +768,22 @@ function handleKeyUp(e) {
 
 document.addEventListener("keydown", handleKeyDown);
 document.addEventListener("keyup", handleKeyUp);
+
+window.addEventListener("gamepadconnected", (event) => {
+  activeGamepadIndex = event.gamepad.index;
+  previousInputState = null;
+});
+
+window.addEventListener("gamepaddisconnected", (event) => {
+  if (event.gamepad.index === activeGamepadIndex) {
+    activeGamepadIndex = null;
+  }
+});
+
+if (versionEl) {
+  versionEl.textContent = GAME_VERSION;
+}
+updatePossessionDisplay();
 
 resetGame();
 requestAnimationFrame(gameLoop);
