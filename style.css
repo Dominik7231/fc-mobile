@@ -87,3 +87,37 @@ canvas#pitch {
   font-size: 0.9rem;
   box-shadow: inset 0 -0.15rem 0.2rem rgba(0, 0, 0, 0.3);
 }
+
+.stamina-meter {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  background: rgba(10, 10, 10, 0.5);
+  border-radius: 16px;
+  padding: 0.65rem 1.1rem 0.8rem;
+  box-shadow: 0 0.6rem 1.6rem rgba(0, 0, 0, 0.28);
+}
+
+.stamina-meter span {
+  font-size: 0.85rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.stamina-meter .bar {
+  position: relative;
+  width: 100%;
+  height: 0.85rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.18);
+  overflow: hidden;
+}
+
+.stamina-meter .fill {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #ffda54 0%, #ff8a00 100%);
+  transition: width 0.12s ease-out;
+}

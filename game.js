@@ -7,6 +7,10 @@ const GOAL_WIDTH = 240;
 const PLAYER_RADIUS = 12;
 const PLAYER_SPEED = 180;
 const USER_SPEED = 230;
+const SPRINT_SPEED = 320;
+const STAMINA_MAX = 100;
+const STAMINA_DRAIN_RATE = 28;
+const STAMINA_RECOVERY_RATE = 16;
 const BALL_RADIUS = 8;
 const BALL_FRICTION = 0.98;
 const BALL_MAX_SPEED = 520;
@@ -22,6 +26,7 @@ let lastKickTime = 0;
 let matchTime = 0;
 let gameOver = false;
 let lastFrame = performance.now();
+let controlledPlayer = null;
 
 class Vector2 {
   constructor(x = 0, y = 0) {
@@ -146,6 +151,9 @@ class Player {
     this.color = color;
     this.isUser = isUser;
     this.lastDirection = new Vector2(team.isHome ? 1 : -1, 0);
+    this.stamina = STAMINA_MAX;
+    this.passHeld = false;
+    this.shootHeld = false;
   }
 
   maxSpeed() {
@@ -171,19 +179,45 @@ class Player {
 
     if (input.length() > 0) {
       input.normalize();
-      this.velocity = input.scale(this.maxSpeed());
+      const wantsSprint = keys.has("ShiftLeft") || keys.has("ShiftRight");
+      let speed = this.maxSpeed();
+      if (wantsSprint && this.stamina > 5) {
+        speed = SPRINT_SPEED;
+        this.stamina = Math.max(0, this.stamina - STAMINA_DRAIN_RATE * dt);
+      } else {
+        if (!wantsSprint) {
+          this.stamina = Math.min(STAMINA_MAX, this.stamina + STAMINA_RECOVERY_RATE * dt);
+        }
+        if (this.stamina <= 0) {
+          speed *= 0.75;
+        }
+      }
+      this.velocity = input.scale(speed);
       this.lastDirection = Vector2.from(input);
     } else {
       this.velocity.scale(0.85);
+      this.stamina = Math.min(STAMINA_MAX, this.stamina + STAMINA_RECOVERY_RATE * dt);
     }
 
-    if (keys.has("Space")) {
+    const shootPressed = keys.has("Space");
+    if (shootPressed && !this.shootHeld) {
       const now = performance.now();
-      if (now - lastKickTime > 200) {
+      if (now - lastKickTime > 220) {
         this.tryKick(ball, 1.1);
         lastKickTime = now;
       }
     }
+    this.shootHeld = shootPressed;
+
+    const passPressed = keys.has("KeyF");
+    if (passPressed && !this.passHeld) {
+      const now = performance.now();
+      if (now - lastKickTime > 160) {
+        this.tryPass(ball);
+        lastKickTime = now;
+      }
+    }
+    this.passHeld = passPressed;
   }
 
   handleAI(dt, ball) {
@@ -240,6 +274,31 @@ class Player {
 
     const strength = KICK_STRENGTH * powerMultiplier;
     ball.velocity = direction.scale(strength);
+  }
+
+  tryPass(ball) {
+    const teammates = this.team.players.filter((mate) => mate !== this);
+    if (!teammates.length) return;
+
+    let bestTarget = null;
+    let bestScore = Infinity;
+    for (const mate of teammates) {
+      const toMate = Vector2.subtract(mate.position, this.position);
+      const distance = toMate.length();
+      const alignment = Math.abs(Vector2.subtract(ball.position, this.position).length() - distance);
+      const score = distance + alignment * 0.25;
+      if (score < bestScore) {
+        bestScore = score;
+        bestTarget = mate;
+      }
+    }
+
+    if (!bestTarget) return;
+
+    const direction = Vector2.subtract(bestTarget.position, this.position).normalize();
+    const distance = Vector2.subtract(bestTarget.position, this.position).length();
+    const power = Math.min(1, 0.45 + distance / 480);
+    this.tryKick(ball, power, direction);
   }
 
   keepInsidePitch() {
@@ -335,6 +394,18 @@ const awayTeam = new Team(false, awayColor);
 homeTeam.init(formation.map((pos) => ({ ...pos })));
 awayTeam.init(formation.map((pos) => ({ ...pos })));
 
+controlledPlayer = homeTeam.players.find((player) => player.isUser) || homeTeam.players[homeTeam.players.length - 1];
+
+function setControlledPlayer(player) {
+  if (!player || player === controlledPlayer) return;
+  if (controlledPlayer) {
+    controlledPlayer.isUser = false;
+  }
+  player.isUser = true;
+  controlledPlayer = player;
+  updateStaminaBar();
+}
+
 const ball = new Ball();
 
 function pitchFromNormalized({ x, y }, isHome) {
@@ -349,20 +420,21 @@ function pitchFromNormalized({ x, y }, isHome) {
 }
 
 function update(dt) {
-    if (gameOver) return;
+  if (gameOver) return;
 
-    matchTime += dt;
-    if (matchTime >= MATCH_LENGTH) {
-      matchTime = MATCH_LENGTH;
-      gameOver = true;
-    }
+  matchTime += dt;
+  if (matchTime >= MATCH_LENGTH) {
+    matchTime = MATCH_LENGTH;
+    gameOver = true;
+  }
 
-    updateClock();
+  updateClock();
+  updateStaminaBar();
 
-    homeTeam.update(dt, ball);
-    awayTeam.update(dt, ball);
-    resolveCollisions();
-    ball.update(dt);
+  homeTeam.update(dt, ball);
+  awayTeam.update(dt, ball);
+  resolveCollisions();
+  ball.update(dt);
 }
 
 function resolveCollisions() {
@@ -479,6 +551,14 @@ function updateClock() {
   timeEl.textContent = `${minutes}:${seconds}`;
 }
 
+const staminaFillEl = document.getElementById("stamina-fill");
+
+function updateStaminaBar() {
+  if (!staminaFillEl || !controlledPlayer) return;
+  const width = (controlledPlayer.stamina / STAMINA_MAX) * 100;
+  staminaFillEl.style.width = `${Math.max(0, Math.min(100, width))}%`;
+}
+
 let homeScore = 0;
 let awayScore = 0;
 
@@ -498,8 +578,12 @@ function resetTeamsAfterGoal(direction) {
   [...homeTeam.players, ...awayTeam.players].forEach((player) => {
     player.position = pitchFromNormalized(player.basePosition, player.team.isHome);
     player.velocity = new Vector2();
+    player.stamina = STAMINA_MAX;
+    player.passHeld = false;
+    player.shootHeld = false;
   });
   ball.reset(direction);
+  updateStaminaBar();
 }
 
 function resetGame() {
@@ -514,7 +598,11 @@ function resetGame() {
   [...homeTeam.players, ...awayTeam.players].forEach((player) => {
     player.position = pitchFromNormalized(player.basePosition, player.team.isHome);
     player.velocity = new Vector2();
+    player.stamina = STAMINA_MAX;
+    player.passHeld = false;
+    player.shootHeld = false;
   });
+  updateStaminaBar();
 }
 
 function gameLoop(timestamp) {
@@ -528,6 +616,9 @@ function gameLoop(timestamp) {
 function handleKeyDown(e) {
   if (e.code === "KeyR" && gameOver) {
     resetGame();
+  }
+  if (e.code === "KeyQ") {
+    switchToClosestPlayer();
   }
   if (["Space", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.code)) {
     e.preventDefault();
@@ -544,3 +635,20 @@ document.addEventListener("keyup", handleKeyUp);
 
 resetGame();
 requestAnimationFrame(gameLoop);
+
+function switchToClosestPlayer() {
+  if (!controlledPlayer) return;
+  let bestPlayer = controlledPlayer;
+  let bestDistance = Infinity;
+  for (const player of homeTeam.players) {
+    if (player === controlledPlayer) continue;
+    const distance = Vector2.subtract(ball.position, player.position).length();
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      bestPlayer = player;
+    }
+  }
+  if (bestPlayer && bestPlayer !== controlledPlayer) {
+    setControlledPlayer(bestPlayer);
+  }
+}

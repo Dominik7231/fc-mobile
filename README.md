@@ -31,6 +31,9 @@ Alternatívaként a fenti „Helyi futtatás” lépéseket követve saját gép
 ## Irányítás
 
 - Mozgás: `W`, `A`, `S`, `D`
-- Lövés / passz: `Space`
+- Lövés: `Space`
+- Precíz passz a legjobb pozícióban álló csapattársnak: `F`
+- Sprint: `Shift` (fogyasztja az állóképességet)
+- Legközelebbi hazai játékos átvétele: `Q`
 
-A pálya tetején található eredményjelző mutatja a hátralévő időt és a gólokat.
+A pálya tetején található eredményjelző mutatja a hátralévő időt és a gólokat, az új állóképesség-csík pedig követhetővé teszi, hogy meddig tartható a sprintelés.
