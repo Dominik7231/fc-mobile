@@ -12,30 +12,62 @@
         <span class="team home">Hazai: <strong id="home-score">0</strong></span>
         <span class="time" id="match-time">00:00</span>
         <span class="team away">Vendég: <strong id="away-score">0</strong></span>
-        <span class="version" id="game-version">v1.7.0</span>
-        <button class="fullscreen-btn" id="fullscreen-btn" type="button">Teljes képernyő</button>
+        <span class="version" id="game-version">v1.8.0</span>
+        <button class="hud-btn menu-toggle-btn" id="menu-toggle-btn" type="button">Menü</button>
+        <button class="hud-btn fullscreen-btn" id="fullscreen-btn" type="button">Teljes képernyő</button>
       </div>
       <div class="possession" id="possession-meter">Birtoklás: 50% - 50%</div>
       <div class="controls">
         <p>
           Billentyűzet: <kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> – mozgás,
           <kbd>Space</kbd> – lövés, <kbd>F</kbd> – passz, <kbd>Shift</kbd> – sprint,
-          <kbd>Q</kbd> – legközelebbi játékos átvétele
+          <kbd>Q</kbd> – legközelebbi játékos átvétele, <kbd>Esc</kbd> – menü
         </p>
         <p>
           Xbox Series kontroller: <span class="chip">Bal kar</span> – mozgás,
-          <span class="chip">RT</span> – sprint, <span class="chip">A</span> – lövés,
-          <span class="chip">B</span> – passz, <span class="chip">LB</span> – játékos váltás
+          <span class="chip">RT / RB</span> – sprint, <span class="chip">A</span> – passz,
+          <span class="chip">B / Y</span> – lövés, <span class="chip">LB</span> – játékos váltás,
+          <span class="chip">Start / Menü</span> – szünet
         </p>
         <p>
           Érintéses vezérlés: bal oldalt virtuális joystick, jobb oldalt gombsor (Lövés, Passz,
-          Sprint, Váltás). A <em>Teljes képernyő</em> gombbal jobban kitölti a kijelzőt a pálya.
+          Sprint, Váltás). A <em>Teljes képernyő</em> gomb – illetve mobilon az automatikus
+          kitöltés – gondoskodik róla, hogy a pálya az egész kijelzőt elfoglalja.
         </p>
       </div>
       <div class="stamina-meter">
         <span>Állóképesség</span>
         <div class="bar">
           <div class="fill" id="stamina-fill"></div>
+        </div>
+      </div>
+    </div>
+    <div class="menu-overlay visible" id="main-menu" data-mode="intro">
+      <div class="menu-card">
+        <h1>Kickoff</h1>
+        <p class="menu-version">Verzió <span id="menu-version">v1.8.0</span></p>
+        <p class="menu-subtitle" data-mode="intro">
+          Koppints vagy nyomd meg a <strong>Meccs indítása</strong> gombot, ha készen állsz a
+          kezdésre.
+        </p>
+        <p class="menu-subtitle" data-mode="pause">
+          A játék szünetel. Válaszd a <strong>Folytatás</strong> gombot, vagy indulj új meccset.
+        </p>
+        <p class="menu-subtitle" data-mode="fulltime">
+          Vége a mérkőzésnek! Indíts új meccset, ha revansot szeretnél.
+        </p>
+        <div class="menu-buttons">
+          <button class="menu-btn primary" id="menu-start" type="button">Meccs indítása</button>
+          <button class="menu-btn" id="menu-resume" type="button">Folytatás</button>
+          <button class="menu-btn" id="menu-restart" type="button">Újrakezdés</button>
+        </div>
+        <div class="menu-patchnotes">
+          <h2>Patch notes</h2>
+          <ul>
+            <li>Lassabb tempó, feszesebb labdakezelés – a passzok és lövések most tényleg elsülnek.</li>
+            <li>Hagyományos Xbox gombkiosztás, érintéses és billentyűs menüvezérlés.</li>
+            <li>Megújult főmenü, mobilbarát teljes képernyő mód és megbízhatóbb pályaelrendezés.</li>
+          </ul>
         </div>
       </div>
     </div>

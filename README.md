@@ -41,20 +41,35 @@ Alternatívaként a fenti „Helyi futtatás” lépéseket követve saját gép
 ### Xbox Series kontroller
 
 - Mozgás: bal analóg kar
-- Lövés: `A`
-- Precíz passz: `B`
-- Sprint: `RT`
+- Precíz passz: `A` (vagy `X`)
+- Lövés: `B` (vagy `Y`)
+- Sprint: `RT` vagy `RB`
 - Legközelebbi játékos átvétele: `LB`
+- Menü nyitása / szünet: `Start` vagy `Menu`
 
 ### Telefon / tablet érintőképernyő
 
 - Bal alsó sarokban található virtuális joystick: húzd az ujjad a kívánt irányba a mozgáshoz.
 - Jobb alsó sarok gombjai: **Lövés**, **Passz**, **Sprint**, **Váltás**.
-- A teljes képernyős módhoz érintsd meg a HUD-on lévő *Teljes képernyő* gombot.
+- Mobil böngészőkben a *Teljes képernyő* gomb natív módot kér, ellenkező esetben automatikusan ál-teljes képernyőre vált, hogy a pálya az egész kijelzőt kitöltse.
+
+### Főmenü és szünet
+
+- A játék induláskor a főmenüt jeleníti meg; innen indíthatsz új mérkőzést, folytathatod a szüneteltetettet vagy gyorsan újraindíthatod az aktuális meccset.
+- Billentyűzeten az `Esc`, kontrolleren a `Start/Menu` gomb bármikor megnyitja vagy bezárja a szünet menüt.
+- Asztali böngészőkben az `Enter` is elindíthatja a mérkőzést a főmenüből.
 
 A kontroller és a billentyűzet párhuzamosan is használható; a játék automatikusan a legutóbbi bemenetet veszi figyelembe.
 
 A pálya tetején található eredményjelző mutatja a hátralévő időt és a gólokat, a verziószám, valamint a birtoklási mérő az aktuális mérkőzés állapotáról ad visszajelzést, míg az állóképesség-csík segít nyomon követni, hogy meddig tartható a sprintelés. Az alsó sarokban megjelenő miniradar a teljes pálya helyzetét összegzi, a játékos előtt lebegő irányjelző pedig segít érezni, merre indul majd a lövés vagy passz.
+
+## Újdonságok a v1.8.0-ban
+
+- A labdavezetés folyamatos marad egészen addig, amíg az ellenfél el nem lopja: a passzok és lövések egyetlen gombnyomással azonnal elsülnek.
+- Klasszikus Xbox kontroller kiosztás (`A` = passz, `B`/`Y` = lövés, `RT/RB` = sprint), valamint `Esc`/`Start` alapú szünetelés.
+- Megújult főmenü, amely asztali és mobileszközön is könnyen kezelhető; innen érhető el a gyors újraindítás és a patch notes.
+- Mobilbarát (ál)teljes képernyő mód: ha a böngésző nem támogatja a natív teljes képernyőt, a játék automatikusan kitölti a kijelzőt.
+- Javítottuk a passz- és lövéslogikát, hogy a gombnyomások megbízhatóan reagáljanak, a játéktempó pedig kiegyensúlyozottabb legyen.
 
 ## Újdonságok a v1.7.0-ban
 

@@ -5,25 +5,25 @@ const WIDTH = canvas.width;
 const HEIGHT = canvas.height;
 const GOAL_WIDTH = 240;
 const PLAYER_RADIUS = 12;
-const PLAYER_SPEED = 160;
-const USER_SPEED = 190;
-const SPRINT_SPEED = 260;
+const PLAYER_SPEED = 150;
+const USER_SPEED = 180;
+const SPRINT_SPEED = 240;
 const STAMINA_MAX = 100;
 const STAMINA_DRAIN_RATE = 28;
 const STAMINA_RECOVERY_RATE = 16;
 const BALL_RADIUS = 8;
-const BALL_FRICTION = 0.985;
-const BALL_MAX_SPEED = 420;
-const KICK_STRENGTH = 360;
-const PASS_RELEASE_TIME = 0.28;
-const SHOT_RELEASE_TIME = 0.48;
-const DRIBBLE_RELEASE_TIME = 0.08;
-const DRIBBLE_MIN_SPEED = 120;
+const BALL_FRICTION = 0.983;
+const BALL_MAX_SPEED = 360;
+const KICK_STRENGTH = 320;
+const PASS_RELEASE_TIME = 0.2;
+const SHOT_RELEASE_TIME = 0.38;
+const DRIBBLE_RELEASE_TIME = 0.06;
+const DRIBBLE_MIN_SPEED = 110;
 const DRIBBLE_LOCK_DISTANCE = PLAYER_RADIUS + BALL_RADIUS + 1.4;
 const MATCH_LENGTH = 4 * 60; // 4 perces mérkőzés
 const PITCH_MARGIN_X = 40;
 const PITCH_MARGIN_Y = 40;
-const GAME_VERSION = "v1.7.0";
+const GAME_VERSION = "v1.8.0";
 const GAMEPAD_DEADZONE = 0.2;
 const PITCH_LEFT = PITCH_MARGIN_X;
 const PITCH_RIGHT = WIDTH - PITCH_MARGIN_X;
@@ -35,8 +35,10 @@ const awayScoreEl = document.getElementById("away-score");
 const timeEl = document.getElementById("match-time");
 const possessionEl = document.getElementById("possession-meter");
 const versionEl = document.getElementById("game-version");
+const menuVersionEl = document.getElementById("menu-version");
 const gameContainer = document.getElementById("game-container");
 const fullscreenBtn = document.getElementById("fullscreen-btn");
+const menuToggleBtn = document.getElementById("menu-toggle-btn");
 const joystickBase = document.getElementById("joystick-base");
 const joystickKnob = document.getElementById("joystick-knob");
 const mobileButtons = {
@@ -45,9 +47,14 @@ const mobileButtons = {
   sprint: document.getElementById("mobile-sprint"),
   switch: document.getElementById("mobile-switch"),
 };
+const menuOverlay = document.getElementById("main-menu");
+const startBtn = document.getElementById("menu-start");
+const resumeBtn = document.getElementById("menu-resume");
+const restartBtn = document.getElementById("menu-restart");
+
+let pseudoFullscreenActive = false;
 
 const keys = new Set();
-let lastKickTime = 0;
 let matchTime = 0;
 let gameOver = false;
 let lastFrame = performance.now();
@@ -57,6 +64,8 @@ let activeGamepadIndex = null;
 let restartState = null;
 let joystickPointerId = null;
 let joystickOrigin = { x: 0, y: 0 };
+let isPaused = true;
+let matchHasStarted = false;
 
 const possessionTotals = {
   home: 0,
@@ -340,11 +349,39 @@ function bindMobileControls() {
   });
 }
 
-function isFullscreenActive() {
+function nativeFullscreenElement() {
   return (
-    document.fullscreenElement === gameContainer ||
-    document.webkitFullscreenElement === gameContainer
+    document.fullscreenElement ||
+    document.webkitFullscreenElement ||
+    document.mozFullScreenElement ||
+    document.msFullscreenElement ||
+    null
   );
+}
+
+function isFullscreenActive() {
+  const nativeEl = nativeFullscreenElement();
+  return (
+    pseudoFullscreenActive ||
+    nativeEl === gameContainer ||
+    nativeEl === document.documentElement
+  );
+}
+
+function enablePseudoFullscreen() {
+  if (!document.body.classList.contains("pseudo-fullscreen")) {
+    document.body.classList.add("pseudo-fullscreen");
+  }
+  pseudoFullscreenActive = true;
+  updateFullscreenButtonState();
+}
+
+function disablePseudoFullscreen() {
+  if (document.body.classList.contains("pseudo-fullscreen")) {
+    document.body.classList.remove("pseudo-fullscreen");
+  }
+  pseudoFullscreenActive = false;
+  updateFullscreenButtonState();
 }
 
 function updateFullscreenButtonState() {
@@ -354,20 +391,63 @@ function updateFullscreenButtonState() {
   fullscreenBtn.textContent = active ? "Kilépés" : "Teljes képernyő";
 }
 
-function toggleFullscreen() {
-  if (!gameContainer) return;
-  if (isFullscreenActive()) {
-    if (document.exitFullscreen) {
-      document.exitFullscreen();
-    } else if (document.webkitExitFullscreen) {
-      document.webkitExitFullscreen();
+async function enterFullscreen() {
+  if (!gameContainer) {
+    enablePseudoFullscreen();
+    return;
+  }
+
+  const target = gameContainer.requestFullscreen ? gameContainer : document.documentElement;
+  if (target && target.requestFullscreen) {
+    try {
+      await target.requestFullscreen();
+      pseudoFullscreenActive = false;
+      if (screen.orientation && screen.orientation.lock) {
+        screen.orientation.lock("landscape").catch(() => {});
+      }
+    } catch (err) {
+      if (gameContainer.webkitRequestFullscreen) {
+        gameContainer.webkitRequestFullscreen();
+        pseudoFullscreenActive = false;
+      } else {
+        enablePseudoFullscreen();
+      }
     }
-  } else if (gameContainer.requestFullscreen) {
-    gameContainer
-      .requestFullscreen()
-      .catch(() => {});
   } else if (gameContainer.webkitRequestFullscreen) {
     gameContainer.webkitRequestFullscreen();
+    pseudoFullscreenActive = false;
+  } else {
+    enablePseudoFullscreen();
+  }
+  updateFullscreenButtonState();
+}
+
+function exitFullscreen() {
+  const nativeEl = nativeFullscreenElement();
+  if (nativeEl) {
+    const exit =
+      document.exitFullscreen ||
+      document.webkitExitFullscreen ||
+      document.mozCancelFullScreen ||
+      document.msExitFullscreen;
+    if (exit) {
+      try {
+        exit.call(document);
+      } catch (err) {
+        disablePseudoFullscreen();
+      }
+    }
+  } else {
+    disablePseudoFullscreen();
+  }
+}
+
+function toggleFullscreen() {
+  if (isFullscreenActive()) {
+    exitFullscreen();
+    disablePseudoFullscreen();
+  } else {
+    enterFullscreen();
   }
 }
 
@@ -437,25 +517,17 @@ class Player {
     }
 
     const shootPressed = Boolean(inputState?.shoot);
-    if (shootPressed && !this.shootHeld) {
-      const now = performance.now();
-      if (now - lastKickTime > 220) {
-        if (this.tryKick(ball, 1.18)) {
-          lastKickTime = now;
-          this.controlCooldown = SHOT_RELEASE_TIME;
-        }
+    if (shootPressed && !this.shootHeld && this.controlCooldown <= 0) {
+      if (this.tryKick(ball, 1.18)) {
+        this.controlCooldown = SHOT_RELEASE_TIME;
       }
     }
     this.shootHeld = shootPressed;
 
     const passPressed = Boolean(inputState?.pass);
-    if (passPressed && !this.passHeld) {
-      const now = performance.now();
-      if (now - lastKickTime > 160) {
-        if (this.tryPass(ball)) {
-          lastKickTime = now;
-          this.controlCooldown = PASS_RELEASE_TIME;
-        }
+    if (passPressed && !this.passHeld && this.controlCooldown <= 0) {
+      if (this.tryPass(ball)) {
+        this.controlCooldown = PASS_RELEASE_TIME;
       }
     }
     this.passHeld = passPressed;
@@ -782,6 +854,7 @@ function pollInputState() {
   let shoot = keys.has("Space");
   let pass = keys.has("KeyF");
   let switchPlayer = keys.has("KeyQ");
+  let pause = keys.has("Escape");
 
   if (mobileInput.move.length() > 0.01) {
     moveX = mobileInput.move.x;
@@ -800,10 +873,19 @@ function pollInputState() {
     moveX += axisX;
     moveY += axisY;
 
-    sprint = sprint || (gamepad.buttons[7] && gamepad.buttons[7].value > 0.4);
-    shoot = shoot || Boolean(gamepad.buttons[0]?.pressed);
-    pass = pass || Boolean(gamepad.buttons[1]?.pressed);
+    const rtPressed = gamepad.buttons[7] && gamepad.buttons[7].value > 0.4;
+    const rbPressed = Boolean(gamepad.buttons[5]?.pressed);
+    sprint = sprint || rtPressed || rbPressed;
+    pass =
+      pass ||
+      Boolean(gamepad.buttons[0]?.pressed) ||
+      Boolean(gamepad.buttons[2]?.pressed);
+    shoot =
+      shoot ||
+      Boolean(gamepad.buttons[1]?.pressed) ||
+      Boolean(gamepad.buttons[3]?.pressed);
     switchPlayer = switchPlayer || Boolean(gamepad.buttons[4]?.pressed);
+    pause = pause || Boolean(gamepad.buttons[8]?.pressed) || Boolean(gamepad.buttons[9]?.pressed);
   }
 
   const move = new Vector2(moveX, moveY);
@@ -817,25 +899,53 @@ function pollInputState() {
     shoot,
     pass,
     switch: switchPlayer,
+    pause,
   };
 }
 
 function update(dt) {
+  const prevState = previousInputState;
   const inputState = pollInputState();
-  if (inputState.switch && !(previousInputState && previousInputState.switch)) {
+
+  const pausePressed = inputState.pause && !(prevState && prevState.pause);
+  if (pausePressed) {
+    if (isPaused || gameOver) {
+      if (gameOver) {
+        restartMatch();
+      } else {
+        if (matchHasStarted) {
+          resumeMatch();
+        } else {
+          startNewMatch();
+        }
+      }
+    } else {
+      pauseMatch();
+    }
+  }
+
+  if (!isPaused && !gameOver && inputState.switch && !(prevState && prevState.switch)) {
     switchToClosestPlayer();
   }
+
   previousInputState = {
     ...inputState,
     move: inputState.move.clone(),
   };
 
-  if (gameOver) return;
+  if (isPaused || gameOver) {
+    updateStaminaBar();
+    return;
+  }
 
   matchTime += dt;
   if (matchTime >= MATCH_LENGTH) {
     matchTime = MATCH_LENGTH;
     gameOver = true;
+    updateClock();
+    pauseMatch(false);
+    showMenu("fulltime");
+    return;
   }
 
   updateClock();
@@ -880,7 +990,9 @@ function resolveCollisions() {
         carryDir.normalize();
         const lockDistance = DRIBBLE_LOCK_DISTANCE;
         ball.position = player.position.clone().add(carryDir.clone().scale(lockDistance));
-        const carrySpeed = Math.max(DRIBBLE_MIN_SPEED, player.velocity.length() * 0.92);
+        const movementSpeed = player.velocity.length();
+        const carrySpeed =
+          movementSpeed < 15 ? 0 : Math.max(DRIBBLE_MIN_SPEED, movementSpeed * 0.9);
         ball.velocity = carryDir.clone().scale(carrySpeed);
       } else {
         let deflectDir = player.lastDirection.clone();
@@ -1154,7 +1266,11 @@ function draw() {
       : "Vereség";
     ctx.fillText(result, WIDTH / 2, HEIGHT / 2 - 20);
     ctx.font = "28px 'Segoe UI', sans-serif";
-    ctx.fillText("Nyomd meg az R gombot az újrakezdéshez", WIDTH / 2, HEIGHT / 2 + 30);
+    ctx.fillText(
+      "Nyomd meg az R gombot, vagy válaszd a menü Újrakezdés opcióját",
+      WIDTH / 2,
+      HEIGHT / 2 + 30
+    );
     ctx.restore();
   }
 }
@@ -1336,6 +1452,72 @@ function resetGame() {
   updatePossessionDisplay();
 }
 
+function updateMenuButtons(mode = "pause") {
+  if (!menuOverlay) return;
+  menuOverlay.dataset.mode = mode;
+
+  if (resumeBtn) {
+    const canResume = matchHasStarted && !gameOver;
+    resumeBtn.style.display = canResume ? "block" : "none";
+  }
+
+  if (startBtn) {
+    startBtn.textContent = matchHasStarted ? "Új meccs indítása" : "Meccs indítása";
+  }
+
+  if (restartBtn) {
+    restartBtn.style.display = matchHasStarted ? "block" : "none";
+  }
+}
+
+function showMenu(mode = "pause") {
+  if (!menuOverlay) return;
+  updateMenuButtons(mode);
+  menuOverlay.classList.add("visible");
+}
+
+function hideMenu() {
+  if (!menuOverlay) return;
+  menuOverlay.classList.remove("visible");
+}
+
+function resumeMatch() {
+  if (gameOver) return;
+  matchHasStarted = true;
+  isPaused = false;
+  hideMenu();
+  lastFrame = performance.now();
+  previousInputState = null;
+}
+
+function pauseMatch(showOverlay = true) {
+  if (isPaused && showOverlay && menuOverlay?.classList.contains("visible")) {
+    updateMenuButtons(gameOver ? "fulltime" : "pause");
+    return;
+  }
+  isPaused = true;
+  if (showOverlay) {
+    showMenu(gameOver ? "fulltime" : "pause");
+  } else {
+    updateMenuButtons(gameOver ? "fulltime" : "pause");
+  }
+}
+
+function startNewMatch() {
+  resetGame();
+  matchHasStarted = true;
+  resumeMatch();
+}
+
+function restartMatch() {
+  if (!matchHasStarted) {
+    startNewMatch();
+    return;
+  }
+  resetGame();
+  resumeMatch();
+}
+
 function gameLoop(timestamp) {
   const dt = Math.min(0.033, (timestamp - lastFrame) / 1000);
   lastFrame = timestamp;
@@ -1346,9 +1528,23 @@ function gameLoop(timestamp) {
 
 function handleKeyDown(e) {
   if (e.code === "KeyR" && gameOver) {
-    resetGame();
+    restartMatch();
   }
-  if (["Space", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.code)) {
+  if (e.code === "Enter" && menuOverlay?.classList.contains("visible")) {
+    e.preventDefault();
+    if (gameOver) {
+      restartMatch();
+    } else if (!matchHasStarted) {
+      startNewMatch();
+    } else {
+      resumeMatch();
+    }
+  }
+  if (
+    ["Space", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Escape"].includes(
+      e.code
+    )
+  ) {
     e.preventDefault();
   }
   keys.add(e.code);
@@ -1372,22 +1568,77 @@ window.addEventListener("gamepaddisconnected", (event) => {
   }
 });
 
+window.addEventListener("blur", () => {
+  if (!isPaused && !gameOver) {
+    pauseMatch();
+  }
+});
+
 if (versionEl) {
   versionEl.textContent = GAME_VERSION;
 }
+if (menuVersionEl) {
+  menuVersionEl.textContent = GAME_VERSION;
+}
 updatePossessionDisplay();
 bindMobileControls();
+if (menuToggleBtn) {
+  menuToggleBtn.addEventListener("click", (event) => {
+    event.preventDefault();
+    const menuVisible = menuOverlay?.classList.contains("visible");
+    if (menuVisible) {
+      if (gameOver) {
+        restartMatch();
+      } else if (!matchHasStarted) {
+        startNewMatch();
+      } else {
+        resumeMatch();
+      }
+    } else {
+      pauseMatch();
+    }
+  });
+}
+if (startBtn) {
+  startBtn.addEventListener("click", (event) => {
+    event.preventDefault();
+    startNewMatch();
+  });
+}
+if (resumeBtn) {
+  resumeBtn.addEventListener("click", (event) => {
+    event.preventDefault();
+    resumeMatch();
+  });
+}
+if (restartBtn) {
+  restartBtn.addEventListener("click", (event) => {
+    event.preventDefault();
+    restartMatch();
+  });
+}
 if (fullscreenBtn) {
   fullscreenBtn.addEventListener("click", (event) => {
     event.preventDefault();
     toggleFullscreen();
   });
-  document.addEventListener("fullscreenchange", updateFullscreenButtonState);
-  document.addEventListener("webkitfullscreenchange", updateFullscreenButtonState);
+  const handleFullscreenChange = () => {
+    if (!nativeFullscreenElement()) {
+      if (!document.body.classList.contains("pseudo-fullscreen")) {
+        pseudoFullscreenActive = false;
+      }
+    } else {
+      pseudoFullscreenActive = false;
+    }
+    updateFullscreenButtonState();
+  };
+  document.addEventListener("fullscreenchange", handleFullscreenChange);
+  document.addEventListener("webkitfullscreenchange", handleFullscreenChange);
   updateFullscreenButtonState();
 }
 
 resetGame();
+showMenu("intro");
 requestAnimationFrame(gameLoop);
 
 function switchToClosestPlayer() {
