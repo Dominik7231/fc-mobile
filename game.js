@@ -18,8 +18,12 @@ const KICK_STRENGTH = 400;
 const MATCH_LENGTH = 4 * 60; // 4 perces mérkőzés
 const PITCH_MARGIN_X = 40;
 const PITCH_MARGIN_Y = 40;
-const GAME_VERSION = "v1.4.0";
+const GAME_VERSION = "v1.5.0";
 const GAMEPAD_DEADZONE = 0.2;
+const PITCH_LEFT = PITCH_MARGIN_X;
+const PITCH_RIGHT = WIDTH - PITCH_MARGIN_X;
+const PITCH_TOP = PITCH_MARGIN_Y;
+const PITCH_BOTTOM = HEIGHT - PITCH_MARGIN_Y;
 
 const homeScoreEl = document.getElementById("home-score");
 const awayScoreEl = document.getElementById("away-score");
@@ -35,6 +39,7 @@ let lastFrame = performance.now();
 let controlledPlayer = null;
 let previousInputState = null;
 let activeGamepadIndex = null;
+let restartState = null;
 
 const possessionTotals = {
   home: 0,
@@ -93,11 +98,15 @@ class Ball {
   constructor() {
     this.position = new Vector2(WIDTH / 2, HEIGHT / 2);
     this.velocity = new Vector2();
+    this.lastTouchTeam = null;
+    this.lastTouchPlayer = null;
   }
 
   reset(direction = 1) {
     this.position = new Vector2(WIDTH / 2, HEIGHT / 2);
     this.velocity = new Vector2(direction * 90, 0);
+    this.lastTouchTeam = null;
+    this.lastTouchPlayer = null;
   }
 
   update(dt) {
@@ -109,35 +118,59 @@ class Ball {
     }
 
     // Falak
-    if (this.position.y < BALL_RADIUS) {
-      this.position.y = BALL_RADIUS;
-      this.velocity.y *= -0.8;
+    const topBoundary = PITCH_TOP + BALL_RADIUS;
+    const bottomBoundary = PITCH_BOTTOM - BALL_RADIUS;
+    if (this.position.y < PITCH_TOP - BALL_RADIUS) {
+      if (handleBallOutOfPlay(this, { kind: "sideline", edge: "top" })) {
+        return;
+      }
     }
-    if (this.position.y > HEIGHT - BALL_RADIUS) {
-      this.position.y = HEIGHT - BALL_RADIUS;
-      this.velocity.y *= -0.8;
+    if (this.position.y > PITCH_BOTTOM + BALL_RADIUS) {
+      if (handleBallOutOfPlay(this, { kind: "sideline", edge: "bottom" })) {
+        return;
+      }
+    }
+    if (this.position.y < topBoundary) {
+      this.position.y = topBoundary;
+      if (this.velocity.y < 0) this.velocity.y *= -0.7;
+    }
+    if (this.position.y > bottomBoundary) {
+      this.position.y = bottomBoundary;
+      if (this.velocity.y > 0) this.velocity.y *= -0.7;
     }
 
-    // Oldalvonalak (kapuk kivételével)
     const goalTop = HEIGHT / 2 - GOAL_WIDTH / 2;
     const goalBottom = HEIGHT / 2 + GOAL_WIDTH / 2;
-
-    if (this.position.x < BALL_RADIUS) {
+    const leftGoalPlane = PITCH_LEFT - BALL_RADIUS;
+    const rightGoalPlane = PITCH_RIGHT + BALL_RADIUS;
+    if (this.position.x < leftGoalPlane) {
       if (this.position.y >= goalTop && this.position.y <= goalBottom) {
         scoreGoal("away");
-      } else {
-        this.position.x = BALL_RADIUS;
-        this.velocity.x *= -0.9;
+        return;
+      }
+      if (handleBallOutOfPlay(this, { kind: "goalLine", side: "left" })) {
+        return;
+      }
+    }
+    if (this.position.x > rightGoalPlane) {
+      if (this.position.y >= goalTop && this.position.y <= goalBottom) {
+        scoreGoal("home");
+        return;
+      }
+      if (handleBallOutOfPlay(this, { kind: "goalLine", side: "right" })) {
+        return;
       }
     }
 
-    if (this.position.x > WIDTH - BALL_RADIUS) {
-      if (this.position.y >= goalTop && this.position.y <= goalBottom) {
-        scoreGoal("home");
-      } else {
-        this.position.x = WIDTH - BALL_RADIUS;
-        this.velocity.x *= -0.9;
-      }
+    const innerLeft = PITCH_LEFT + BALL_RADIUS;
+    const innerRight = PITCH_RIGHT - BALL_RADIUS;
+    if (this.position.x < innerLeft) {
+      this.position.x = innerLeft;
+      if (this.velocity.x < 0) this.velocity.x *= -0.75;
+    }
+    if (this.position.x > innerRight) {
+      this.position.x = innerRight;
+      if (this.velocity.x > 0) this.velocity.x *= -0.75;
     }
   }
 
@@ -151,6 +184,10 @@ class Ball {
     ctx.strokeStyle = "#222";
     ctx.stroke();
     ctx.restore();
+  }
+  recordTouch(player) {
+    this.lastTouchTeam = player?.team || null;
+    this.lastTouchPlayer = player || null;
   }
 }
 
@@ -244,6 +281,24 @@ class Player {
       targetNorm.y += (ball.position.y / HEIGHT - 0.5) * 0.12;
     }
 
+    const scoreDiff = homeScore - awayScore;
+    const isHome = this.team.isHome;
+    const matchProgress = Math.min(1, matchTime / MATCH_LENGTH);
+    const isLosing = isHome ? scoreDiff < 0 : scoreDiff > 0;
+    const isWinning = isHome ? scoreDiff > 0 : scoreDiff < 0;
+
+    if (isLosing && matchProgress > 0.45) {
+      targetNorm.x += 0.08 * homeMirror;
+      targetNorm.y += (ball.position.y / HEIGHT - 0.5) * 0.18;
+    }
+
+    if (isWinning && matchProgress > 0.75) {
+      targetNorm.x -= 0.05 * homeMirror;
+    }
+
+    targetNorm.x = Math.max(0.04, Math.min(0.96, targetNorm.x));
+    targetNorm.y = Math.max(0.08, Math.min(0.92, targetNorm.y));
+
     const target = pitchFromNormalized(targetNorm, this.team.isHome);
     const desired = Vector2.subtract(target, this.position);
 
@@ -292,6 +347,7 @@ class Player {
 
     const strength = KICK_STRENGTH * powerMultiplier;
     ball.velocity = direction.scale(strength);
+    ball.recordTouch(this);
   }
 
   tryPass(ball) {
@@ -544,9 +600,15 @@ function update(dt) {
 
   homeTeam.update(dt, ball, inputState);
   awayTeam.update(dt, ball);
-  resolveCollisions();
+  if (!restartState) {
+    resolveCollisions();
+  }
   trackPossession(dt);
-  ball.update(dt);
+  if (restartState) {
+    handleRestart(dt);
+  } else {
+    ball.update(dt);
+  }
   updatePossessionDisplay();
 }
 
@@ -559,15 +621,179 @@ function resolveCollisions() {
 
     if (distance < minDist) {
       const overlap = minDist - distance;
-      const normal =
+      let normal =
         distance === 0
           ? new Vector2(Math.random() - 0.5, Math.random() - 0.5).normalize()
           : delta.normalize();
-      ball.position.add(Vector2.from(normal).scale(overlap + 1));
-      ball.velocity = Vector2.from(normal).scale(KICK_STRENGTH * 0.6);
-      player.lastDirection = Vector2.from(normal);
+      ball.position.add(Vector2.from(normal).scale(overlap + 0.6));
+
+      const approachSpeed = player.velocity.length();
+      if (player === controlledPlayer) {
+        let carryDir = player.lastDirection.clone();
+        if (!carryDir || carryDir.length() < 0.1) {
+          carryDir = Vector2.from(normal);
+        }
+        carryDir.normalize();
+        const keepClose = Math.max(110, approachSpeed * 1.35);
+        ball.velocity = carryDir.scale(keepClose);
+      } else {
+        let deflectDir = player.lastDirection.clone();
+        if (!deflectDir || deflectDir.length() < 0.1) {
+          deflectDir = Vector2.from(normal);
+        }
+        deflectDir.normalize();
+        const deflectPower = Math.max(180, approachSpeed * 1.8);
+        ball.velocity = deflectDir.scale(deflectPower);
+      }
+
+      const newDir = Vector2.from(ball.velocity);
+      if (newDir.length() > 0.01) {
+        player.lastDirection = newDir.normalize();
+      }
+      ball.recordTouch(player);
     }
   }
+}
+
+function getOpposingTeam(team) {
+  return team === homeTeam ? awayTeam : homeTeam;
+}
+
+function defaultRestartDirection(team, spot, curve = 0.006) {
+  const horizontal = team.isHome ? 1 : -1;
+  const vertical = (HEIGHT / 2 - spot.y) * curve;
+  return new Vector2(horizontal, vertical);
+}
+
+function scheduleRestart({ type, team, spot, direction, power }) {
+  const timer = type === "goalKick" ? 0.85 : type === "corner" ? 0.75 : 0.6;
+  restartState = {
+    type,
+    team,
+    spot: spot.clone(),
+    direction: direction.clone(),
+    power,
+    timer,
+  };
+  ball.velocity = new Vector2();
+  ball.position = spot.clone();
+}
+
+function findNearestPlayer(team, targetSpot) {
+  let best = null;
+  let bestDistance = Infinity;
+  team.players.forEach((player) => {
+    const distance = Vector2.subtract(targetSpot, player.position).length();
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      best = player;
+    }
+  });
+  return best;
+}
+
+function handleRestart(dt) {
+  if (!restartState) return;
+  const spot = restartState.spot.clone();
+  ball.position = spot;
+  ball.velocity = new Vector2();
+
+  const direction = restartState.direction.clone();
+  if (direction.length() < 0.01) {
+    direction.x = restartState.team.isHome ? 1 : -1;
+  }
+  const normDir = direction.clone().normalize();
+
+  const taker = findNearestPlayer(restartState.team, spot);
+  if (taker) {
+    const offset = normDir.clone().scale(PLAYER_RADIUS * 1.6);
+    taker.position = spot.clone().subtract(offset);
+    taker.velocity = new Vector2();
+    taker.lastDirection = normDir.clone();
+    if (restartState.team === homeTeam) {
+      setControlledPlayer(taker);
+    }
+  }
+
+  restartState.timer -= dt;
+  if (restartState.timer <= 0) {
+    if (taker) {
+      ball.recordTouch(taker);
+    } else {
+      ball.lastTouchTeam = restartState.team;
+      ball.lastTouchPlayer = null;
+    }
+    const kickDir = normDir.length() > 0 ? normDir.clone() : defaultRestartDirection(restartState.team, spot);
+    ball.velocity = kickDir.normalize().scale(restartState.power);
+    restartState = null;
+  }
+}
+
+function handleBallOutOfPlay(ball, context) {
+  if (restartState) return true;
+
+  const fallbackTeam = ball.position.x < WIDTH / 2 ? awayTeam : homeTeam;
+  let awardingTeam = ball.lastTouchTeam ? getOpposingTeam(ball.lastTouchTeam) : fallbackTeam;
+
+  if (context.kind === "sideline") {
+    const y = context.edge === "top" ? PITCH_TOP + BALL_RADIUS : PITCH_BOTTOM - BALL_RADIUS;
+    const x = Math.max(PITCH_LEFT + BALL_RADIUS, Math.min(PITCH_RIGHT - BALL_RADIUS, ball.position.x));
+    const spot = new Vector2(x, y);
+    const direction = defaultRestartDirection(awardingTeam, spot, 0.008);
+    scheduleRestart({
+      type: "throwIn",
+      team: awardingTeam,
+      spot,
+      direction,
+      power: KICK_STRENGTH * 0.35,
+    });
+    return true;
+  }
+
+  if (context.kind === "goalLine") {
+    const side = context.side;
+    const defendingTeam = side === "left" ? homeTeam : awayTeam;
+    const attackingTeam = getOpposingTeam(defendingTeam);
+    const y = Math.max(PITCH_TOP + BALL_RADIUS, Math.min(PITCH_BOTTOM - BALL_RADIUS, ball.position.y));
+    const nearTop = y < HEIGHT / 2;
+
+    if (ball.lastTouchTeam === defendingTeam) {
+      awardingTeam = attackingTeam;
+    } else if (ball.lastTouchTeam === attackingTeam) {
+      awardingTeam = defendingTeam;
+    } else {
+      awardingTeam = attackingTeam;
+    }
+
+    if (awardingTeam === attackingTeam) {
+      const cornerY = nearTop ? PITCH_TOP + BALL_RADIUS : PITCH_BOTTOM - BALL_RADIUS;
+      const cornerX = side === "left" ? PITCH_LEFT + BALL_RADIUS : PITCH_RIGHT - BALL_RADIUS;
+      const spot = new Vector2(cornerX, cornerY);
+      const direction = defaultRestartDirection(awardingTeam, spot, 0.014);
+      scheduleRestart({
+        type: "corner",
+        team: awardingTeam,
+        spot,
+        direction,
+        power: KICK_STRENGTH * 0.42,
+      });
+    } else {
+      const kickX = side === "left" ? PITCH_LEFT + 80 : PITCH_RIGHT - 80;
+      const centeredY = Math.max(PITCH_TOP + BALL_RADIUS + 40, Math.min(PITCH_BOTTOM - BALL_RADIUS - 40, y));
+      const spot = new Vector2(kickX, centeredY);
+      const direction = defaultRestartDirection(awardingTeam, spot, 0.006);
+      scheduleRestart({
+        type: "goalKick",
+        team: awardingTeam,
+        spot,
+        direction,
+        power: KICK_STRENGTH * 0.55,
+      });
+    }
+    return true;
+  }
+
+  return false;
 }
 
 function drawPitch() {
@@ -718,6 +944,7 @@ function resetTeamsAfterGoal(direction) {
     player.shootHeld = false;
   });
   ball.reset(direction);
+  restartState = null;
   updateStaminaBar();
 }
 
@@ -729,6 +956,7 @@ function resetGame() {
   homeScoreEl.textContent = "0";
   awayScoreEl.textContent = "0";
   ball.reset(1);
+  restartState = null;
   updateClock();
   possessionTotals.home = 0;
   possessionTotals.away = 0;

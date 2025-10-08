@@ -50,6 +50,13 @@ A kontroller és a billentyűzet párhuzamosan is használható; a játék autom
 
 A pálya tetején található eredményjelző mutatja a hátralévő időt és a gólokat, a verziószám, valamint a birtoklási mérő az aktuális mérkőzés állapotáról ad visszajelzést, míg az állóképesség-csík segít nyomon követni, hogy meddig tartható a sprintelés.
 
+## Újdonságok a v1.5.0-ban
+
+- Bedobások, kirúgások és szögletek automatikusan hozzák vissza a labdát a pályára, így az sosem akad a vonalon kívül.
+- A labdakezelés finomabb: a felhasználó irányította játékos közel tartja a labdát, miközben az AI lövései realisztikusabban pattannak le.
+- A csapatok taktikája az állás és az idő függvényében módosul, hátrányban agresszívebben támadnak, előnyben visszazárnak.
+- A HUD továbbra is mutatja az állóképességet, birtoklást és az aktuális verziószámot, immár v1.5.0 jelöléssel.
+
 ## Újdonságok a v1.4.0-ban
 
 - A játékosok már nem léphetnek a vonalakon kívülre: a mesterséges intelligencia és a felhasználó által irányított labdarúgók is a játéktéren belül maradnak.
