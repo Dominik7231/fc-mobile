@@ -18,7 +18,7 @@ const KICK_STRENGTH = 400;
 const MATCH_LENGTH = 4 * 60; // 4 perces mérkőzés
 const PITCH_MARGIN_X = 40;
 const PITCH_MARGIN_Y = 40;
-const GAME_VERSION = "v1.5.0";
+const GAME_VERSION = "v1.6.0";
 const GAMEPAD_DEADZONE = 0.2;
 const PITCH_LEFT = PITCH_MARGIN_X;
 const PITCH_RIGHT = WIDTH - PITCH_MARGIN_X;
@@ -120,12 +120,12 @@ class Ball {
     // Falak
     const topBoundary = PITCH_TOP + BALL_RADIUS;
     const bottomBoundary = PITCH_BOTTOM - BALL_RADIUS;
-    if (this.position.y < PITCH_TOP - BALL_RADIUS) {
+    if (this.position.y <= PITCH_TOP) {
       if (handleBallOutOfPlay(this, { kind: "sideline", edge: "top" })) {
         return;
       }
     }
-    if (this.position.y > PITCH_BOTTOM + BALL_RADIUS) {
+    if (this.position.y >= PITCH_BOTTOM) {
       if (handleBallOutOfPlay(this, { kind: "sideline", edge: "bottom" })) {
         return;
       }
@@ -141,9 +141,9 @@ class Ball {
 
     const goalTop = HEIGHT / 2 - GOAL_WIDTH / 2;
     const goalBottom = HEIGHT / 2 + GOAL_WIDTH / 2;
-    const leftGoalPlane = PITCH_LEFT - BALL_RADIUS;
-    const rightGoalPlane = PITCH_RIGHT + BALL_RADIUS;
-    if (this.position.x < leftGoalPlane) {
+    const leftGoalPlane = PITCH_LEFT;
+    const rightGoalPlane = PITCH_RIGHT;
+    if (this.position.x <= leftGoalPlane) {
       if (this.position.y >= goalTop && this.position.y <= goalBottom) {
         scoreGoal("away");
         return;
@@ -152,7 +152,7 @@ class Ball {
         return;
       }
     }
-    if (this.position.x > rightGoalPlane) {
+    if (this.position.x >= rightGoalPlane) {
       if (this.position.y >= goalTop && this.position.y <= goalBottom) {
         scoreGoal("home");
         return;
@@ -204,6 +204,7 @@ class Player {
     this.stamina = STAMINA_MAX;
     this.passHeld = false;
     this.shootHeld = false;
+    this.pendingRestart = false;
   }
 
   maxSpeed() {
@@ -221,6 +222,12 @@ class Player {
   }
 
   handleUserControl(dt, ball, inputState) {
+    if (restartState && restartState.taker === this) {
+      this.velocity = new Vector2();
+      this.stamina = Math.min(STAMINA_MAX, this.stamina + STAMINA_RECOVERY_RATE * dt);
+      return;
+    }
+
     const moveInput = inputState?.move ? inputState.move.clone() : new Vector2();
 
     if (moveInput.length() > 0) {
@@ -267,6 +274,26 @@ class Player {
   }
 
   handleAI(dt, ball) {
+    if (this.pendingRestart) {
+      this.velocity = new Vector2();
+      return;
+    }
+    if (restartState) {
+      if (restartState.team === this.team) {
+        this.velocity = new Vector2();
+        return;
+      }
+      const baseSpot = pitchFromNormalized(this.basePosition, this.team.isHome);
+      const retreat = Vector2.subtract(baseSpot, this.position);
+      if (retreat.length() > 2) {
+        retreat.normalize().scale(this.maxSpeed() * 0.55);
+        this.velocity = retreat;
+      } else {
+        this.velocity.scale(0.7);
+      }
+      return;
+    }
+
     const influence = (ball.position.x / WIDTH - 0.5) * (this.team.isHome ? 0.35 : -0.35);
     const homeMirror = this.team.isHome ? 1 : -1;
     const targetNorm = {
@@ -431,9 +458,16 @@ class Team {
   }
 
   update(dt, ball, inputState = null) {
-    this.assignChasers(ball);
+    if (!restartState) {
+      this.assignChasers(ball);
+    } else {
+      this.currentChasers = [];
+    }
     this.players.forEach((p) => {
-      const playerInput = p === controlledPlayer ? inputState : null;
+      const playerInput =
+        p === controlledPlayer && (!restartState || restartState.team === this)
+          ? inputState
+          : null;
       p.update(dt, ball, playerInput);
     });
   }
@@ -631,18 +665,21 @@ function resolveCollisions() {
       if (player === controlledPlayer) {
         let carryDir = player.lastDirection.clone();
         if (!carryDir || carryDir.length() < 0.1) {
-          carryDir = Vector2.from(normal);
+          carryDir = Vector2.from(delta);
         }
         carryDir.normalize();
-        const keepClose = Math.max(110, approachSpeed * 1.35);
-        ball.velocity = carryDir.scale(keepClose);
+        const lockDistance = PLAYER_RADIUS + BALL_RADIUS + 1.5;
+        ball.position = player.position.clone().add(carryDir.clone().scale(lockDistance));
+        const carrySpeed = Math.max(player.velocity.length(), USER_SPEED * 0.35);
+        ball.velocity = carryDir.scale(carrySpeed);
       } else {
         let deflectDir = player.lastDirection.clone();
         if (!deflectDir || deflectDir.length() < 0.1) {
           deflectDir = Vector2.from(normal);
         }
         deflectDir.normalize();
-        const deflectPower = Math.max(180, approachSpeed * 1.8);
+        const deflectPower = Math.max(200, approachSpeed * 1.65);
+        ball.position = player.position.clone().add(deflectDir.clone().scale(PLAYER_RADIUS + BALL_RADIUS + 0.6));
         ball.velocity = deflectDir.scale(deflectPower);
       }
 
@@ -667,6 +704,15 @@ function defaultRestartDirection(team, spot, curve = 0.006) {
 
 function scheduleRestart({ type, team, spot, direction, power }) {
   const timer = type === "goalKick" ? 0.85 : type === "corner" ? 0.75 : 0.6;
+  team.players.forEach((p) => {
+    p.pendingRestart = false;
+  });
+  const taker = findNearestPlayer(team, spot);
+  if (taker) {
+    taker.pendingRestart = true;
+    taker.velocity = new Vector2();
+    taker.lastDirection = direction.clone().normalize();
+  }
   restartState = {
     type,
     team,
@@ -674,6 +720,8 @@ function scheduleRestart({ type, team, spot, direction, power }) {
     direction: direction.clone(),
     power,
     timer,
+    taker: taker || null,
+    settle: 0.2,
   };
   ball.velocity = new Vector2();
   ball.position = spot.clone();
@@ -704,7 +752,14 @@ function handleRestart(dt) {
   }
   const normDir = direction.clone().normalize();
 
-  const taker = findNearestPlayer(restartState.team, spot);
+  let taker = restartState.taker;
+  if (!taker || taker.team !== restartState.team) {
+    taker = findNearestPlayer(restartState.team, spot);
+    restartState.taker = taker;
+    if (taker) {
+      taker.pendingRestart = true;
+    }
+  }
   if (taker) {
     const offset = normDir.clone().scale(PLAYER_RADIUS * 1.6);
     taker.position = spot.clone().subtract(offset);
@@ -715,9 +770,15 @@ function handleRestart(dt) {
     }
   }
 
+  if (restartState.settle > 0) {
+    restartState.settle = Math.max(0, restartState.settle - dt);
+    return;
+  }
+
   restartState.timer -= dt;
   if (restartState.timer <= 0) {
     if (taker) {
+      taker.pendingRestart = false;
       ball.recordTouch(taker);
     } else {
       ball.lastTouchTeam = restartState.team;
@@ -863,6 +924,7 @@ function draw() {
   homeTeam.draw();
   awayTeam.draw();
   ball.draw();
+  drawRadar();
 
   if (gameOver) {
     ctx.save();
@@ -881,6 +943,56 @@ function draw() {
     ctx.fillText("Nyomd meg az R gombot az újrakezdéshez", WIDTH / 2, HEIGHT / 2 + 30);
     ctx.restore();
   }
+}
+
+function drawRadar() {
+  const radarWidth = 170;
+  const radarHeight = 118;
+  const margin = 20;
+  const padding = 12;
+  const originX = WIDTH - radarWidth - margin;
+  const originY = HEIGHT - radarHeight - margin;
+
+  ctx.save();
+  ctx.globalAlpha = 0.92;
+  ctx.fillStyle = "rgba(6, 18, 6, 0.65)";
+  ctx.fillRect(originX, originY, radarWidth, radarHeight);
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.35)";
+  ctx.lineWidth = 2;
+  ctx.strokeRect(originX, originY, radarWidth, radarHeight);
+
+  const pitchWidth = PITCH_RIGHT - PITCH_LEFT;
+  const pitchHeight = PITCH_BOTTOM - PITCH_TOP;
+  const scaleX = (radarWidth - padding * 2) / pitchWidth;
+  const scaleY = (radarHeight - padding * 2) / pitchHeight;
+
+  const project = (position) => ({
+    x: originX + padding + (position.x - PITCH_LEFT) * scaleX,
+    y: originY + padding + (position.y - PITCH_TOP) * scaleY,
+  });
+
+  const drawDot = (pos, color, size = 3) => {
+    ctx.beginPath();
+    ctx.fillStyle = color;
+    ctx.arc(pos.x, pos.y, size, 0, Math.PI * 2);
+    ctx.fill();
+  };
+
+  homeTeam.players.forEach((player) => {
+    const point = project(player.position);
+    const size = player === controlledPlayer ? 5 : 3;
+    drawDot(point, homeTeam.color, size);
+  });
+
+  awayTeam.players.forEach((player) => {
+    const point = project(player.position);
+    drawDot(point, awayTeam.color, 3);
+  });
+
+  const ballPoint = project(ball.position);
+  drawDot(ballPoint, "#ffd54f", 3.5);
+
+  ctx.restore();
 }
 
 function updateClock() {
@@ -933,6 +1045,8 @@ function scoreGoal(side) {
     awayScoreEl.textContent = awayScore;
     resetTeamsAfterGoal(1);
   }
+  ball.lastTouchTeam = null;
+  ball.lastTouchPlayer = null;
 }
 
 function resetTeamsAfterGoal(direction) {
@@ -942,6 +1056,7 @@ function resetTeamsAfterGoal(direction) {
     player.stamina = STAMINA_MAX;
     player.passHeld = false;
     player.shootHeld = false;
+    player.pendingRestart = false;
   });
   ball.reset(direction);
   restartState = null;
@@ -967,6 +1082,7 @@ function resetGame() {
     player.stamina = STAMINA_MAX;
     player.passHeld = false;
     player.shootHeld = false;
+    player.pendingRestart = false;
   });
   updateStaminaBar();
   updatePossessionDisplay();

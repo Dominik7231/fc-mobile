@@ -48,14 +48,21 @@ Alternatívaként a fenti „Helyi futtatás” lépéseket követve saját gép
 
 A kontroller és a billentyűzet párhuzamosan is használható; a játék automatikusan a legutóbbi bemenetet veszi figyelembe.
 
-A pálya tetején található eredményjelző mutatja a hátralévő időt és a gólokat, a verziószám, valamint a birtoklási mérő az aktuális mérkőzés állapotáról ad visszajelzést, míg az állóképesség-csík segít nyomon követni, hogy meddig tartható a sprintelés.
+A pálya tetején található eredményjelző mutatja a hátralévő időt és a gólokat, a verziószám, valamint a birtoklási mérő az aktuális mérkőzés állapotáról ad visszajelzést, míg az állóképesség-csík segít nyomon követni, hogy meddig tartható a sprintelés. Az alsó sarokban megjelenő miniradar a teljes pálya helyzetét összegzi, így gyorsan felmérhető, merre mozognak a társak és az ellenfelek.
+
+## Újdonságok a v1.6.0-ban
+
+- Teljesen átdolgozott labdakezelés: a felhasználó vezérelt játékos stabilan a lába előtt tartja a labdát, így valódi cselezés és irányváltás is lehetséges, míg az AI lecsorgó labdái kiszámíthatóbb ívet kapnak.
+- Minden pontrúgás gyorsan és automatikusan lezajlik – a rendszer kijelöli a végrehajtót, rögzíti a labdát, majd bedobás, kirúgás vagy szöglet után azonnal játékba hozza, akkor is, ha az ellenfél vitte ki a labdát.
+- A gólvonal-ellenőrzés és a saját kapus gólok kezelése megbízhatóbb lett, így az öngólok is azonnal érvényes találatnak számítanak.
+- Új, HUD-ra rajzolt miniradar segít előre látni a csapatok mozgását, hogy jobban tervezhető legyen a letámadás és az indítás.
 
 ## Újdonságok a v1.5.0-ban
 
 - Bedobások, kirúgások és szögletek automatikusan hozzák vissza a labdát a pályára, így az sosem akad a vonalon kívül.
 - A labdakezelés finomabb: a felhasználó irányította játékos közel tartja a labdát, miközben az AI lövései realisztikusabban pattannak le.
 - A csapatok taktikája az állás és az idő függvényében módosul, hátrányban agresszívebben támadnak, előnyben visszazárnak.
-- A HUD továbbra is mutatja az állóképességet, birtoklást és az aktuális verziószámot, immár v1.5.0 jelöléssel.
+- A HUD továbbra is mutatja az állóképességet, birtoklást és az aktuális verziószámot, immár v1.6.0 jelöléssel.
 
 ## Újdonságok a v1.4.0-ban
 
