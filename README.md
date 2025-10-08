@@ -33,8 +33,8 @@ Alternatívaként a fenti „Helyi futtatás” lépéseket követve saját gép
 ### Billentyűzet
 
 - Mozgás: `W`, `A`, `S`, `D`
-- Lövés: `Space`
-- Precíz passz a legjobb pozícióban álló csapattársnak: `F`
+- Lövés: `Space`, `K` vagy `L`
+- Precíz passz a legjobb pozícióban álló csapattársnak: `F`, `J` vagy `X`
 - Sprint: `Shift` (fogyasztja az állóképességet)
 - Legközelebbi hazai játékos átvétele: `Q`
 
@@ -52,6 +52,7 @@ Alternatívaként a fenti „Helyi futtatás” lépéseket követve saját gép
 - Bal alsó sarokban található virtuális joystick: húzd az ujjad a kívánt irányba a mozgáshoz.
 - Jobb alsó sarok gombjai: **Lövés**, **Passz**, **Sprint**, **Váltás**.
 - Mobil böngészőkben a *Teljes képernyő* gomb natív módot kér, ellenkező esetben automatikusan ál-teljes képernyőre vált, hogy a pálya az egész kijelzőt kitöltse.
+- Ál-teljes képernyőn a HUD minimalizálódik, a joystick és az akciógombok kompaktabb méretet kapnak, hogy jobban látható maradjon a pálya.
 
 ### Főmenü és szünet
 
@@ -62,6 +63,13 @@ Alternatívaként a fenti „Helyi futtatás” lépéseket követve saját gép
 A kontroller és a billentyűzet párhuzamosan is használható; a játék automatikusan a legutóbbi bemenetet veszi figyelembe.
 
 A pálya tetején található eredményjelző mutatja a hátralévő időt és a gólokat, a verziószám, valamint a birtoklási mérő az aktuális mérkőzés állapotáról ad visszajelzést, míg az állóképesség-csík segít nyomon követni, hogy meddig tartható a sprintelés. Az alsó sarokban megjelenő miniradar a teljes pálya helyzetét összegzi, a játékos előtt lebegő irányjelző pedig segít érezni, merre indul majd a lövés vagy passz.
+
+## Újdonságok a v1.9.0-ban
+
+- A labda most a felhasználó lábához tapad, amíg az ellenfél el nem veszi: a driblizés kisimult, a passz és a lövés pedig minden eszközön azonnal reagál.
+- Új input-variációk billentyűzeten (`F/J/X` a passzhoz, `Space/K/L` a lövéshez) és finomhangolt kontroller sebességek teszik megbízhatóbbá az irányítást.
+- Mobilon ál-teljes képernyőben keskenyebb HUD és kompakt joystick/gombok biztosítják, hogy a pálya nagy része jól látszódjon.
+- Finomított labdafizika (lassabb maximális sebesség, simább súrlódás) kiegyensúlyozottabb tempót ad a mérkőzéseknek.
 
 ## Újdonságok a v1.8.0-ban
 

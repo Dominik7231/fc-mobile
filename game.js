@@ -5,25 +5,26 @@ const WIDTH = canvas.width;
 const HEIGHT = canvas.height;
 const GOAL_WIDTH = 240;
 const PLAYER_RADIUS = 12;
-const PLAYER_SPEED = 150;
-const USER_SPEED = 180;
-const SPRINT_SPEED = 240;
+const PLAYER_SPEED = 140;
+const USER_SPEED = 170;
+const SPRINT_SPEED = 230;
 const STAMINA_MAX = 100;
 const STAMINA_DRAIN_RATE = 28;
 const STAMINA_RECOVERY_RATE = 16;
 const BALL_RADIUS = 8;
-const BALL_FRICTION = 0.983;
-const BALL_MAX_SPEED = 360;
-const KICK_STRENGTH = 320;
+const BALL_FRICTION = 0.986;
+const BALL_MAX_SPEED = 330;
+const KICK_STRENGTH = 300;
 const PASS_RELEASE_TIME = 0.2;
 const SHOT_RELEASE_TIME = 0.38;
 const DRIBBLE_RELEASE_TIME = 0.06;
 const DRIBBLE_MIN_SPEED = 110;
 const DRIBBLE_LOCK_DISTANCE = PLAYER_RADIUS + BALL_RADIUS + 1.4;
+const DRIBBLE_MAGNET_DISTANCE = PLAYER_RADIUS + BALL_RADIUS + 34;
 const MATCH_LENGTH = 4 * 60; // 4 perces mérkőzés
 const PITCH_MARGIN_X = 40;
 const PITCH_MARGIN_Y = 40;
-const GAME_VERSION = "v1.8.0";
+const GAME_VERSION = "v1.9.0";
 const GAMEPAD_DEADZONE = 0.2;
 const PITCH_LEFT = PITCH_MARGIN_X;
 const PITCH_RIGHT = WIDTH - PITCH_MARGIN_X;
@@ -493,9 +494,10 @@ class Player {
     }
 
     const moveInput = inputState?.move ? inputState.move.clone() : new Vector2();
+    let moveDirection = null;
 
     if (moveInput.length() > 0) {
-      moveInput.normalize();
+      moveDirection = moveInput.clone().normalize();
       const wantsSprint = Boolean(inputState?.sprint);
       let speed = this.maxSpeed();
       if (wantsSprint && this.stamina > 5) {
@@ -509,11 +511,18 @@ class Player {
           speed *= 0.75;
         }
       }
-      this.velocity = moveInput.scale(speed);
-      this.lastDirection = Vector2.from(moveInput);
+      this.velocity = moveDirection.clone().scale(speed);
+      this.lastDirection = moveDirection.clone();
     } else {
       this.velocity.scale(0.85);
       this.stamina = Math.min(STAMINA_MAX, this.stamina + STAMINA_RECOVERY_RATE * dt);
+    }
+
+    const canAssist =
+      this.controlCooldown <= DRIBBLE_RELEASE_TIME * 1.2 &&
+      (ball.lastTouchPlayer === this || Vector2.subtract(ball.position, this.position).length() < DRIBBLE_MAGNET_DISTANCE);
+    if (canAssist) {
+      this.maintainBallControl(ball, moveDirection);
     }
 
     const shootPressed = Boolean(inputState?.shoot);
@@ -531,6 +540,45 @@ class Player {
       }
     }
     this.passHeld = passPressed;
+  }
+
+  maintainBallControl(ball, preferredDirection = null, force = false) {
+    if (!ball) return false;
+    if (!force && this.controlCooldown > DRIBBLE_RELEASE_TIME * 1.2) {
+      return false;
+    }
+
+    const toBall = Vector2.subtract(ball.position, this.position);
+    const distance = toBall.length();
+    const canSnap =
+      distance <= DRIBBLE_MAGNET_DISTANCE ||
+      ball.lastTouchPlayer === this ||
+      (force && distance <= DRIBBLE_MAGNET_DISTANCE * 1.5);
+    if (!canSnap) {
+      return false;
+    }
+
+    let facing = preferredDirection ? preferredDirection.clone() : this.lastDirection.clone();
+    if (!facing || facing.length() < 0.1) {
+      facing = distance > 0 ? toBall.clone() : new Vector2(this.team.isHome ? 1 : -1, 0);
+    }
+    facing.normalize();
+
+    const desiredPos = this.position.clone().add(facing.clone().scale(DRIBBLE_LOCK_DISTANCE));
+    const adjustment = Vector2.subtract(desiredPos, ball.position);
+    const clamp = Math.min(1, Math.max(0.35, adjustment.length() / DRIBBLE_MAGNET_DISTANCE));
+    ball.position.add(adjustment.scale(clamp));
+
+    const moveSpeed = this.velocity.length();
+    const carryBase = Math.max(moveSpeed, DRIBBLE_MIN_SPEED * 0.55);
+    const carrySpeed = Math.min(BALL_MAX_SPEED * 0.6, carryBase);
+    if (carrySpeed < 8) {
+      ball.velocity = facing.clone().scale(0);
+    } else {
+      ball.velocity = facing.clone().scale(carrySpeed);
+    }
+    ball.recordTouch(this);
+    return true;
   }
 
   handleAI(dt, ball) {
@@ -621,9 +669,21 @@ class Player {
   }
 
   tryKick(ball, powerMultiplier = 1, directionOverride = null) {
-    const toBall = Vector2.subtract(ball.position, this.position);
-    const distance = toBall.length();
-    if (distance > PLAYER_RADIUS + BALL_RADIUS + 4) return false;
+    let toBall = Vector2.subtract(ball.position, this.position);
+    let distance = toBall.length();
+    if (distance > PLAYER_RADIUS + BALL_RADIUS + 6) {
+      const forcedDir = directionOverride
+        ? directionOverride.clone()
+        : toBall.length() > 0.01
+        ? toBall.clone()
+        : this.lastDirection.clone();
+      const regained = this.maintainBallControl(ball, forcedDir, true);
+      if (!regained) {
+        return false;
+      }
+      toBall = Vector2.subtract(ball.position, this.position);
+      distance = toBall.length();
+    }
 
     let direction;
     if (directionOverride) {
@@ -851,8 +911,8 @@ function pollInputState() {
   if (keys.has("KeyW") || keys.has("ArrowUp")) moveY -= 1;
 
   let sprint = keys.has("ShiftLeft") || keys.has("ShiftRight");
-  let shoot = keys.has("Space");
-  let pass = keys.has("KeyF");
+  let shoot = keys.has("Space") || keys.has("KeyK") || keys.has("KeyL");
+  let pass = keys.has("KeyF") || keys.has("KeyJ") || keys.has("KeyX");
   let switchPlayer = keys.has("KeyQ");
   let pause = keys.has("Escape");
 

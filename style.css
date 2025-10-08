@@ -28,6 +28,10 @@ body.pseudo-fullscreen {
   padding: 0;
 }
 
+body.touch-enabled.pseudo-fullscreen {
+  background: #05210f;
+}
+
 body.pseudo-fullscreen .hud {
   position: fixed;
   top: 0;
@@ -48,6 +52,16 @@ body.pseudo-fullscreen .game-container {
   justify-content: center;
   padding: 0;
   z-index: 10;
+}
+
+body.touch-enabled.pseudo-fullscreen .hud {
+  padding: 0.75rem 1rem 0.5rem;
+  gap: 0.5rem;
+}
+
+body.touch-enabled.pseudo-fullscreen .controls,
+body.touch-enabled.pseudo-fullscreen .stamina-meter {
+  display: none;
 }
 
 body.pseudo-fullscreen canvas#pitch {
@@ -359,10 +373,10 @@ body.touch-enabled .mobile-controls {
   width: 140px;
   height: 140px;
   border-radius: 50%;
-  background: rgba(0, 0, 0, 0.35);
-  border: 2px solid rgba(255, 255, 255, 0.28);
+  background: rgba(0, 0, 0, 0.28);
+  border: 2px solid rgba(255, 255, 255, 0.24);
   backdrop-filter: blur(6px);
-  box-shadow: 0 0.65rem 1.4rem rgba(0, 0, 0, 0.45);
+  box-shadow: 0 0.65rem 1.4rem rgba(0, 0, 0, 0.35);
 }
 
 .joystick-knob {
@@ -373,9 +387,9 @@ body.touch-enabled .mobile-controls {
   width: 74px;
   height: 74px;
   border-radius: 50%;
-  background: radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.75), rgba(180, 180, 180, 0.2));
-  border: 2px solid rgba(255, 255, 255, 0.45);
-  box-shadow: 0 0.5rem 1.2rem rgba(0, 0, 0, 0.4);
+  background: radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.78), rgba(150, 150, 150, 0.15));
+  border: 2px solid rgba(255, 255, 255, 0.38);
+  box-shadow: 0 0.5rem 1.2rem rgba(0, 0, 0, 0.35);
   transition: transform 0.1s ease;
 }
 
@@ -387,7 +401,7 @@ body.touch-enabled .mobile-controls {
 .mobile-btn {
   appearance: none;
   border: 1px solid rgba(255, 255, 255, 0.28);
-  background: rgba(0, 0, 0, 0.45);
+  background: rgba(0, 0, 0, 0.38);
   color: #fff;
   font-family: inherit;
   font-size: 1rem;
@@ -395,7 +409,7 @@ body.touch-enabled .mobile-controls {
   letter-spacing: 0.08em;
   padding: 0.85rem 1.4rem;
   border-radius: 18px;
-  box-shadow: 0 0.6rem 1.4rem rgba(0, 0, 0, 0.4);
+  box-shadow: 0 0.6rem 1.4rem rgba(0, 0, 0, 0.32);
   cursor: pointer;
   transition: transform 0.12s ease, background 0.2s ease;
 }
@@ -414,6 +428,26 @@ body.touch-enabled .mobile-controls {
   background: rgba(255, 255, 255, 0.22);
 }
 
+body.touch-enabled.pseudo-fullscreen .mobile-controls {
+  padding: clamp(0.65rem, 4vw, 1.4rem) clamp(0.75rem, 6vw, 1.75rem);
+  gap: clamp(0.75rem, 7vw, 2rem);
+}
+
+body.touch-enabled.pseudo-fullscreen .mobile-controls .joystick {
+  width: min(32vw, 132px);
+  height: min(32vw, 132px);
+}
+
+body.touch-enabled.pseudo-fullscreen .mobile-buttons {
+  gap: clamp(0.55rem, 4.5vw, 1.2rem);
+}
+
+body.touch-enabled.pseudo-fullscreen .mobile-btn {
+  font-size: clamp(0.8rem, 2.8vw, 1rem);
+  padding: clamp(0.55rem, 3vw, 0.95rem) clamp(0.8rem, 5vw, 1.4rem);
+  border-radius: 16px;
+}
+
 @media (max-width: 900px) {
   body {
     padding-inline: 0.75rem;
@@ -426,6 +460,10 @@ body.touch-enabled .mobile-controls {
 
   canvas#pitch {
     border-width: 8px;
+  }
+
+  .mobile-controls {
+    padding: 1rem;
   }
 }
 
@@ -450,5 +488,46 @@ body.touch-enabled .mobile-controls {
 
   .menu-patchnotes li {
     font-size: 0.9rem;
+  }
+
+  .mobile-controls .joystick {
+    width: 122px;
+    height: 122px;
+  }
+
+  .joystick-knob {
+    width: 66px;
+    height: 66px;
+  }
+
+  .mobile-btn {
+    font-size: 0.9rem;
+    padding: 0.7rem 1.05rem;
+  }
+}
+
+@media (max-width: 520px) {
+  body {
+    padding-inline: 0.5rem;
+  }
+
+  .mobile-controls {
+    padding: 0.75rem;
+  }
+
+  .mobile-controls .joystick {
+    width: 108px;
+    height: 108px;
+  }
+
+  .joystick-knob {
+    width: 58px;
+    height: 58px;
+  }
+
+  .mobile-btn {
+    font-size: 0.8rem;
+    padding: 0.58rem 0.85rem;
+    border-radius: 14px;
   }
 }
