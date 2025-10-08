@@ -5,20 +5,25 @@ const WIDTH = canvas.width;
 const HEIGHT = canvas.height;
 const GOAL_WIDTH = 240;
 const PLAYER_RADIUS = 12;
-const PLAYER_SPEED = 180;
-const USER_SPEED = 230;
-const SPRINT_SPEED = 320;
+const PLAYER_SPEED = 160;
+const USER_SPEED = 190;
+const SPRINT_SPEED = 260;
 const STAMINA_MAX = 100;
 const STAMINA_DRAIN_RATE = 28;
 const STAMINA_RECOVERY_RATE = 16;
 const BALL_RADIUS = 8;
-const BALL_FRICTION = 0.98;
-const BALL_MAX_SPEED = 520;
-const KICK_STRENGTH = 400;
+const BALL_FRICTION = 0.985;
+const BALL_MAX_SPEED = 420;
+const KICK_STRENGTH = 360;
+const PASS_RELEASE_TIME = 0.28;
+const SHOT_RELEASE_TIME = 0.48;
+const DRIBBLE_RELEASE_TIME = 0.08;
+const DRIBBLE_MIN_SPEED = 120;
+const DRIBBLE_LOCK_DISTANCE = PLAYER_RADIUS + BALL_RADIUS + 1.4;
 const MATCH_LENGTH = 4 * 60; // 4 perces mérkőzés
 const PITCH_MARGIN_X = 40;
 const PITCH_MARGIN_Y = 40;
-const GAME_VERSION = "v1.6.0";
+const GAME_VERSION = "v1.7.0";
 const GAMEPAD_DEADZONE = 0.2;
 const PITCH_LEFT = PITCH_MARGIN_X;
 const PITCH_RIGHT = WIDTH - PITCH_MARGIN_X;
@@ -30,6 +35,16 @@ const awayScoreEl = document.getElementById("away-score");
 const timeEl = document.getElementById("match-time");
 const possessionEl = document.getElementById("possession-meter");
 const versionEl = document.getElementById("game-version");
+const gameContainer = document.getElementById("game-container");
+const fullscreenBtn = document.getElementById("fullscreen-btn");
+const joystickBase = document.getElementById("joystick-base");
+const joystickKnob = document.getElementById("joystick-knob");
+const mobileButtons = {
+  pass: document.getElementById("mobile-pass"),
+  shoot: document.getElementById("mobile-shoot"),
+  sprint: document.getElementById("mobile-sprint"),
+  switch: document.getElementById("mobile-switch"),
+};
 
 const keys = new Set();
 let lastKickTime = 0;
@@ -40,6 +55,8 @@ let controlledPlayer = null;
 let previousInputState = null;
 let activeGamepadIndex = null;
 let restartState = null;
+let joystickPointerId = null;
+let joystickOrigin = { x: 0, y: 0 };
 
 const possessionTotals = {
   home: 0,
@@ -111,7 +128,8 @@ class Ball {
 
   update(dt) {
     this.position.add(Vector2.from(this.velocity).scale(dt));
-    this.velocity.scale(BALL_FRICTION);
+    const damping = Math.pow(BALL_FRICTION, dt * 60);
+    this.velocity.scale(damping);
 
     if (this.velocity.length() > BALL_MAX_SPEED) {
       this.velocity.normalize().scale(BALL_MAX_SPEED);
@@ -191,6 +209,168 @@ class Ball {
   }
 }
 
+const mobileInput = {
+  move: new Vector2(),
+  sprint: false,
+  shoot: false,
+  pass: false,
+  switch: false,
+};
+
+function detectTouchEnvironment() {
+  if (
+    typeof navigator !== "undefined" &&
+    (navigator.maxTouchPoints > 0 || "ontouchstart" in window)
+  ) {
+    document.body.classList.add("touch-enabled");
+    return;
+  }
+  if (window.matchMedia && window.matchMedia("(pointer: coarse)").matches) {
+    document.body.classList.add("touch-enabled");
+  }
+}
+
+function updateJoystickPosition(dx, dy) {
+  if (!joystickKnob) return;
+  const maxDistance = 48;
+  const distance = Math.hypot(dx, dy);
+  const scale = distance > maxDistance && distance > 0 ? maxDistance / distance : 1;
+  const clampedDx = dx * scale;
+  const clampedDy = dy * scale;
+  joystickKnob.style.setProperty("--dx", `${clampedDx}px`);
+  joystickKnob.style.setProperty("--dy", `${clampedDy}px`);
+  mobileInput.move.x = Math.max(-1, Math.min(1, clampedDx / maxDistance));
+  mobileInput.move.y = Math.max(-1, Math.min(1, clampedDy / maxDistance));
+}
+
+function resetJoystick() {
+  mobileInput.move.x = 0;
+  mobileInput.move.y = 0;
+  joystickPointerId = null;
+  if (joystickKnob) {
+    joystickKnob.style.setProperty("--dx", "0px");
+    joystickKnob.style.setProperty("--dy", "0px");
+  }
+}
+
+function bindMobileControls() {
+  detectTouchEnvironment();
+  if (window.matchMedia) {
+    const coarseQuery = window.matchMedia("(pointer: coarse)");
+    const activate = (event) => {
+      if (event.matches) {
+        document.body.classList.add("touch-enabled");
+      }
+    };
+    if (coarseQuery.addEventListener) {
+      coarseQuery.addEventListener("change", activate);
+    } else if (coarseQuery.addListener) {
+      coarseQuery.addListener(activate);
+    }
+  }
+
+  window.addEventListener("touchstart", () => {
+    document.body.classList.add("touch-enabled");
+  }, { once: true });
+
+  if (joystickBase) {
+    joystickBase.addEventListener("pointerdown", (event) => {
+      document.body.classList.add("touch-enabled");
+      joystickPointerId = event.pointerId;
+      joystickOrigin = { x: event.clientX, y: event.clientY };
+      if (joystickBase.setPointerCapture) {
+        joystickBase.setPointerCapture(event.pointerId);
+      }
+      updateJoystickPosition(0, 0);
+      event.preventDefault();
+    });
+  }
+
+  window.addEventListener("pointermove", (event) => {
+    if (joystickPointerId !== null && event.pointerId === joystickPointerId) {
+      updateJoystickPosition(event.clientX - joystickOrigin.x, event.clientY - joystickOrigin.y);
+      event.preventDefault();
+    }
+  });
+
+  const finishJoystick = (event) => {
+    if (joystickPointerId !== null && event.pointerId === joystickPointerId) {
+      if (joystickBase && joystickBase.releasePointerCapture) {
+        joystickBase.releasePointerCapture(event.pointerId);
+      }
+      resetJoystick();
+      event.preventDefault();
+    }
+  };
+
+  window.addEventListener("pointerup", finishJoystick);
+  window.addEventListener("pointercancel", finishJoystick);
+
+  Object.entries(mobileButtons).forEach(([key, button]) => {
+    if (!button) return;
+    button.addEventListener("click", (event) => event.preventDefault());
+    button.addEventListener("pointerdown", (event) => {
+      document.body.classList.add("touch-enabled");
+      mobileInput[key] = true;
+      button.classList.add("pressed");
+      if (button.setPointerCapture) {
+        button.setPointerCapture(event.pointerId);
+      }
+      event.preventDefault();
+    });
+    const release = (event) => {
+      mobileInput[key] = false;
+      button.classList.remove("pressed");
+      const pointerId = event?.pointerId;
+      if (pointerId !== undefined && button.releasePointerCapture) {
+        try {
+          button.releasePointerCapture(pointerId);
+        } catch (err) {
+          // ignore release failures
+        }
+      }
+    };
+    button.addEventListener("pointerup", (event) => {
+      release(event);
+      event.preventDefault();
+    });
+    button.addEventListener("pointercancel", release);
+    button.addEventListener("pointerleave", release);
+    button.addEventListener("lostpointercapture", release);
+  });
+}
+
+function isFullscreenActive() {
+  return (
+    document.fullscreenElement === gameContainer ||
+    document.webkitFullscreenElement === gameContainer
+  );
+}
+
+function updateFullscreenButtonState() {
+  if (!fullscreenBtn) return;
+  const active = isFullscreenActive();
+  fullscreenBtn.classList.toggle("active", active);
+  fullscreenBtn.textContent = active ? "Kilépés" : "Teljes képernyő";
+}
+
+function toggleFullscreen() {
+  if (!gameContainer) return;
+  if (isFullscreenActive()) {
+    if (document.exitFullscreen) {
+      document.exitFullscreen();
+    } else if (document.webkitExitFullscreen) {
+      document.webkitExitFullscreen();
+    }
+  } else if (gameContainer.requestFullscreen) {
+    gameContainer
+      .requestFullscreen()
+      .catch(() => {});
+  } else if (gameContainer.webkitRequestFullscreen) {
+    gameContainer.webkitRequestFullscreen();
+  }
+}
+
 class Player {
   constructor(team, index, basePosition, color, isUser = false) {
     this.team = team;
@@ -205,6 +385,7 @@ class Player {
     this.passHeld = false;
     this.shootHeld = false;
     this.pendingRestart = false;
+    this.controlCooldown = 0;
   }
 
   maxSpeed() {
@@ -212,6 +393,9 @@ class Player {
   }
 
   update(dt, ball, inputState = null) {
+    if (this.controlCooldown > 0) {
+      this.controlCooldown = Math.max(0, this.controlCooldown - dt);
+    }
     if (this.isUser) {
       this.handleUserControl(dt, ball, inputState);
     } else {
@@ -256,8 +440,10 @@ class Player {
     if (shootPressed && !this.shootHeld) {
       const now = performance.now();
       if (now - lastKickTime > 220) {
-        this.tryKick(ball, 1.1);
-        lastKickTime = now;
+        if (this.tryKick(ball, 1.18)) {
+          lastKickTime = now;
+          this.controlCooldown = SHOT_RELEASE_TIME;
+        }
       }
     }
     this.shootHeld = shootPressed;
@@ -266,8 +452,10 @@ class Player {
     if (passPressed && !this.passHeld) {
       const now = performance.now();
       if (now - lastKickTime > 160) {
-        this.tryPass(ball);
-        lastKickTime = now;
+        if (this.tryPass(ball)) {
+          lastKickTime = now;
+          this.controlCooldown = PASS_RELEASE_TIME;
+        }
       }
     }
     this.passHeld = passPressed;
@@ -353,7 +541,9 @@ class Player {
         const towardGoal = this.team.isHome
           ? new Vector2(1, (ball.position.y < HEIGHT / 2 ? -0.2 : 0.2))
           : new Vector2(-1, (ball.position.y < HEIGHT / 2 ? -0.2 : 0.2));
-        this.tryKick(ball, 0.75, towardGoal);
+        if (this.tryKick(ball, 0.82, towardGoal)) {
+          this.controlCooldown = Math.max(this.controlCooldown, PASS_RELEASE_TIME * 0.6);
+        }
       }
     }
   }
@@ -361,25 +551,34 @@ class Player {
   tryKick(ball, powerMultiplier = 1, directionOverride = null) {
     const toBall = Vector2.subtract(ball.position, this.position);
     const distance = toBall.length();
-    if (distance > PLAYER_RADIUS + BALL_RADIUS + 4) return;
+    if (distance > PLAYER_RADIUS + BALL_RADIUS + 4) return false;
 
     let direction;
     if (directionOverride) {
-      direction = directionOverride.clone().normalize();
+      direction = directionOverride.clone();
     } else if (this.lastDirection.length() > 0.1) {
-      direction = this.lastDirection.clone().normalize();
+      direction = this.lastDirection.clone();
     } else {
-      direction = toBall.normalize();
+      direction = toBall;
     }
 
-    const strength = KICK_STRENGTH * powerMultiplier;
-    ball.velocity = direction.scale(strength);
+    if (direction.length() === 0) {
+      direction = new Vector2(1, 0);
+    }
+    direction.normalize();
+
+    const strength = Math.min(BALL_MAX_SPEED, KICK_STRENGTH * powerMultiplier);
+    ball.position = this.position.clone().add(direction.clone().scale(DRIBBLE_LOCK_DISTANCE));
+    ball.velocity = direction.clone().scale(strength);
     ball.recordTouch(this);
+    this.lastDirection = direction.clone();
+    this.controlCooldown = Math.max(this.controlCooldown, DRIBBLE_RELEASE_TIME);
+    return true;
   }
 
   tryPass(ball) {
     const teammates = this.team.players.filter((mate) => mate !== this);
-    if (!teammates.length) return;
+    if (!teammates.length) return false;
 
     let bestTarget = null;
     let bestScore = Infinity;
@@ -394,12 +593,12 @@ class Player {
       }
     }
 
-    if (!bestTarget) return;
+    if (!bestTarget) return false;
 
     const direction = Vector2.subtract(bestTarget.position, this.position).normalize();
     const distance = Vector2.subtract(bestTarget.position, this.position).length();
-    const power = Math.min(1, 0.45 + distance / 480);
-    this.tryKick(ball, power, direction);
+    const power = Math.min(1.12, 0.48 + distance / 520);
+    return this.tryKick(ball, power, direction);
   }
 
   keepInsidePitch() {
@@ -584,6 +783,16 @@ function pollInputState() {
   let pass = keys.has("KeyF");
   let switchPlayer = keys.has("KeyQ");
 
+  if (mobileInput.move.length() > 0.01) {
+    moveX = mobileInput.move.x;
+    moveY = mobileInput.move.y;
+  }
+
+  sprint = sprint || mobileInput.sprint;
+  shoot = shoot || mobileInput.shoot;
+  pass = pass || mobileInput.pass;
+  switchPlayer = switchPlayer || mobileInput.switch;
+
   const gamepad = getActiveGamepad();
   if (gamepad) {
     const axisX = applyDeadzone(gamepad.axes[0] || 0);
@@ -662,25 +871,29 @@ function resolveCollisions() {
       ball.position.add(Vector2.from(normal).scale(overlap + 0.6));
 
       const approachSpeed = player.velocity.length();
-      if (player === controlledPlayer) {
+      const canCarry = player === controlledPlayer && player.controlCooldown <= 0;
+      if (canCarry) {
         let carryDir = player.lastDirection.clone();
         if (!carryDir || carryDir.length() < 0.1) {
           carryDir = Vector2.from(delta);
         }
         carryDir.normalize();
-        const lockDistance = PLAYER_RADIUS + BALL_RADIUS + 1.5;
+        const lockDistance = DRIBBLE_LOCK_DISTANCE;
         ball.position = player.position.clone().add(carryDir.clone().scale(lockDistance));
-        const carrySpeed = Math.max(player.velocity.length(), USER_SPEED * 0.35);
-        ball.velocity = carryDir.scale(carrySpeed);
+        const carrySpeed = Math.max(DRIBBLE_MIN_SPEED, player.velocity.length() * 0.92);
+        ball.velocity = carryDir.clone().scale(carrySpeed);
       } else {
         let deflectDir = player.lastDirection.clone();
         if (!deflectDir || deflectDir.length() < 0.1) {
           deflectDir = Vector2.from(normal);
         }
         deflectDir.normalize();
-        const deflectPower = Math.max(200, approachSpeed * 1.65);
-        ball.position = player.position.clone().add(deflectDir.clone().scale(PLAYER_RADIUS + BALL_RADIUS + 0.6));
-        ball.velocity = deflectDir.scale(deflectPower);
+        const deflectPower = Math.max(160, approachSpeed * 1.55);
+        ball.position = player.position.clone().add(deflectDir.clone().scale(PLAYER_RADIUS + BALL_RADIUS + 0.5));
+        ball.velocity = deflectDir.clone().scale(Math.min(BALL_MAX_SPEED, deflectPower));
+        if (player === controlledPlayer) {
+          player.controlCooldown = Math.max(player.controlCooldown, DRIBBLE_RELEASE_TIME * 1.5);
+        }
       }
 
       const newDir = Vector2.from(ball.velocity);
@@ -924,6 +1137,7 @@ function draw() {
   homeTeam.draw();
   awayTeam.draw();
   ball.draw();
+  drawDirectionAssist();
   drawRadar();
 
   if (gameOver) {
@@ -943,6 +1157,33 @@ function draw() {
     ctx.fillText("Nyomd meg az R gombot az újrakezdéshez", WIDTH / 2, HEIGHT / 2 + 30);
     ctx.restore();
   }
+}
+
+function drawDirectionAssist() {
+  if (!controlledPlayer) return;
+  const facing = controlledPlayer.lastDirection.clone();
+  if (facing.length() < 0.1) return;
+  facing.normalize();
+  const start = controlledPlayer.position.clone().add(facing.clone().scale(PLAYER_RADIUS + 4));
+  const end = start.clone().add(facing.clone().scale(46));
+  ctx.save();
+  ctx.strokeStyle = "rgba(255, 214, 0, 0.75)";
+  ctx.lineWidth = 3;
+  ctx.lineCap = "round";
+  ctx.beginPath();
+  ctx.moveTo(start.x, start.y);
+  ctx.lineTo(end.x, end.y);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.fillStyle = "rgba(255, 214, 0, 0.75)";
+  const arrowTip = end.clone();
+  const perp = new Vector2(-facing.y, facing.x).normalize().scale(6);
+  ctx.moveTo(arrowTip.x, arrowTip.y);
+  ctx.lineTo(arrowTip.x - facing.x * 10 + perp.x, arrowTip.y - facing.y * 10 + perp.y);
+  ctx.lineTo(arrowTip.x - facing.x * 10 - perp.x, arrowTip.y - facing.y * 10 - perp.y);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
 }
 
 function drawRadar() {
@@ -1057,6 +1298,7 @@ function resetTeamsAfterGoal(direction) {
     player.passHeld = false;
     player.shootHeld = false;
     player.pendingRestart = false;
+    player.controlCooldown = 0;
   });
   ball.reset(direction);
   restartState = null;
@@ -1076,6 +1318,11 @@ function resetGame() {
   possessionTotals.home = 0;
   possessionTotals.away = 0;
   previousInputState = null;
+  mobileInput.move = new Vector2();
+  mobileInput.pass = false;
+  mobileInput.shoot = false;
+  mobileInput.sprint = false;
+  mobileInput.switch = false;
   [...homeTeam.players, ...awayTeam.players].forEach((player) => {
     player.position = pitchFromNormalized(player.basePosition, player.team.isHome);
     player.velocity = new Vector2();
@@ -1083,6 +1330,7 @@ function resetGame() {
     player.passHeld = false;
     player.shootHeld = false;
     player.pendingRestart = false;
+    player.controlCooldown = 0;
   });
   updateStaminaBar();
   updatePossessionDisplay();
@@ -1128,6 +1376,16 @@ if (versionEl) {
   versionEl.textContent = GAME_VERSION;
 }
 updatePossessionDisplay();
+bindMobileControls();
+if (fullscreenBtn) {
+  fullscreenBtn.addEventListener("click", (event) => {
+    event.preventDefault();
+    toggleFullscreen();
+  });
+  document.addEventListener("fullscreenchange", updateFullscreenButtonState);
+  document.addEventListener("webkitfullscreenchange", updateFullscreenButtonState);
+  updateFullscreenButtonState();
+}
 
 resetGame();
 requestAnimationFrame(gameLoop);

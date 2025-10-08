@@ -46,9 +46,23 @@ Alternatívaként a fenti „Helyi futtatás” lépéseket követve saját gép
 - Sprint: `RT`
 - Legközelebbi játékos átvétele: `LB`
 
+### Telefon / tablet érintőképernyő
+
+- Bal alsó sarokban található virtuális joystick: húzd az ujjad a kívánt irányba a mozgáshoz.
+- Jobb alsó sarok gombjai: **Lövés**, **Passz**, **Sprint**, **Váltás**.
+- A teljes képernyős módhoz érintsd meg a HUD-on lévő *Teljes képernyő* gombot.
+
 A kontroller és a billentyűzet párhuzamosan is használható; a játék automatikusan a legutóbbi bemenetet veszi figyelembe.
 
-A pálya tetején található eredményjelző mutatja a hátralévő időt és a gólokat, a verziószám, valamint a birtoklási mérő az aktuális mérkőzés állapotáról ad visszajelzést, míg az állóképesség-csík segít nyomon követni, hogy meddig tartható a sprintelés. Az alsó sarokban megjelenő miniradar a teljes pálya helyzetét összegzi, így gyorsan felmérhető, merre mozognak a társak és az ellenfelek.
+A pálya tetején található eredményjelző mutatja a hátralévő időt és a gólokat, a verziószám, valamint a birtoklási mérő az aktuális mérkőzés állapotáról ad visszajelzést, míg az állóképesség-csík segít nyomon követni, hogy meddig tartható a sprintelés. Az alsó sarokban megjelenő miniradar a teljes pálya helyzetét összegzi, a játékos előtt lebegő irányjelző pedig segít érezni, merre indul majd a lövés vagy passz.
+
+## Újdonságok a v1.7.0-ban
+
+- Újratervezett labdakezelés: a játékos rövid kontroll-idővel engedi el a játékszert, így a passzok és lövések valóban elszállnak, mégis feszes marad a cselezés.
+- Lassabb, taktikusabb tempó új sebesség- és súrlódási beállításokkal, hogy a mérkőzések olvashatóbbak legyenek.
+- Teljes képernyős mód egyetlen gombnyomással, valamint érintéses HUD joystickkal és gombokkal mobileszközökön.
+- Új irányjelző a felhasználó által irányított játékos előtt, ami megmutatja a következő passz/lövés várható irányát.
+- Dokumentációs frissítések a mobil vezérlésről és a v1.7.0-s fejlesztésekről.
 
 ## Újdonságok a v1.6.0-ban
 

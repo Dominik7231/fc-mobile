@@ -12,7 +12,8 @@
         <span class="team home">Hazai: <strong id="home-score">0</strong></span>
         <span class="time" id="match-time">00:00</span>
         <span class="team away">Vendég: <strong id="away-score">0</strong></span>
-        <span class="version" id="game-version">v1.6.0</span>
+        <span class="version" id="game-version">v1.7.0</span>
+        <button class="fullscreen-btn" id="fullscreen-btn" type="button">Teljes képernyő</button>
       </div>
       <div class="possession" id="possession-meter">Birtoklás: 50% - 50%</div>
       <div class="controls">
@@ -26,6 +27,10 @@
           <span class="chip">RT</span> – sprint, <span class="chip">A</span> – lövés,
           <span class="chip">B</span> – passz, <span class="chip">LB</span> – játékos váltás
         </p>
+        <p>
+          Érintéses vezérlés: bal oldalt virtuális joystick, jobb oldalt gombsor (Lövés, Passz,
+          Sprint, Váltás). A <em>Teljes képernyő</em> gombbal jobban kitölti a kijelzőt a pálya.
+        </p>
       </div>
       <div class="stamina-meter">
         <span>Állóképesség</span>
@@ -34,7 +39,20 @@
         </div>
       </div>
     </div>
-    <canvas id="pitch" width="1200" height="720"></canvas>
+    <div class="game-container" id="game-container">
+      <canvas id="pitch" width="1200" height="720"></canvas>
+      <div class="mobile-controls" id="mobile-controls">
+        <div class="joystick" id="joystick-base">
+          <div class="joystick-knob" id="joystick-knob"></div>
+        </div>
+        <div class="mobile-buttons">
+          <button class="mobile-btn" id="mobile-pass" type="button">Passz</button>
+          <button class="mobile-btn primary" id="mobile-shoot" type="button">Lövés</button>
+          <button class="mobile-btn" id="mobile-sprint" type="button">Sprint</button>
+          <button class="mobile-btn" id="mobile-switch" type="button">Váltás</button>
+        </div>
+      </div>
+    </div>
     <script src="game.js"></script>
   </body>
 </html>

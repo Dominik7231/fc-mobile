@@ -51,6 +51,33 @@ canvas#pitch {
   box-shadow: 0 0.5rem 1.5rem rgba(0, 0, 0, 0.35);
 }
 
+.fullscreen-btn {
+  appearance: none;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  background: rgba(255, 255, 255, 0.08);
+  color: #fdfdfd;
+  font-family: inherit;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  padding: 0.45rem 1.1rem;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+
+.fullscreen-btn:hover,
+.fullscreen-btn:focus-visible {
+  background: rgba(255, 255, 255, 0.18);
+  outline: none;
+  transform: translateY(-1px);
+}
+
+.fullscreen-btn.active {
+  background: rgba(255, 255, 255, 0.28);
+  color: #111;
+}
+
 .scoreboard .team {
   font-size: 1.1rem;
   text-transform: uppercase;
@@ -151,4 +178,103 @@ canvas#pitch {
   border-radius: inherit;
   background: linear-gradient(90deg, #ffda54 0%, #ff8a00 100%);
   transition: width 0.12s ease-out;
+}
+
+.game-container {
+  position: relative;
+  width: min(1200px, 100%);
+  display: flex;
+  justify-content: center;
+}
+
+.mobile-controls {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  padding: 1.25rem;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.25s ease;
+}
+
+body.touch-enabled .mobile-controls {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.mobile-controls .joystick {
+  position: relative;
+  width: 140px;
+  height: 140px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.35);
+  border: 2px solid rgba(255, 255, 255, 0.28);
+  backdrop-filter: blur(6px);
+  box-shadow: 0 0.65rem 1.4rem rgba(0, 0, 0, 0.45);
+}
+
+.joystick-knob {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(calc(-50% + var(--dx, 0px)), calc(-50% + var(--dy, 0px)));
+  width: 74px;
+  height: 74px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.75), rgba(180, 180, 180, 0.2));
+  border: 2px solid rgba(255, 255, 255, 0.45);
+  box-shadow: 0 0.5rem 1.2rem rgba(0, 0, 0, 0.4);
+  transition: transform 0.1s ease;
+}
+
+.mobile-buttons {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.mobile-btn {
+  appearance: none;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  background: rgba(0, 0, 0, 0.45);
+  color: #fff;
+  font-family: inherit;
+  font-size: 1rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 0.85rem 1.4rem;
+  border-radius: 18px;
+  box-shadow: 0 0.6rem 1.4rem rgba(0, 0, 0, 0.4);
+  cursor: pointer;
+  transition: transform 0.12s ease, background 0.2s ease;
+}
+
+.mobile-btn.primary {
+  background: linear-gradient(135deg, rgba(255, 214, 0, 0.85), rgba(255, 138, 0, 0.85));
+  color: #1b1b1b;
+}
+
+.mobile-btn:active {
+  transform: scale(0.95);
+}
+
+.mobile-btn.pressed {
+  transform: scale(0.95);
+  background: rgba(255, 255, 255, 0.22);
+}
+
+@media (max-width: 900px) {
+  body {
+    padding-inline: 0.75rem;
+    padding-bottom: 2rem;
+  }
+
+  .scoreboard {
+    border-radius: 20px;
+  }
+
+  canvas#pitch {
+    border-width: 8px;
+  }
 }
